@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Připojení k E-jídelníčku",
+        "description": "Zadejte adresu E-jídelníčku vaší školní jídelny (například `skola.example.cz`, s `https://` nebo bez něj). Uživatelské jméno a heslo jsou volitelné -- necháte-li je prázdné, uvidíte pouze veřejný jídelníček, bez informací o objednávkách a stavu konta.",
+        "data": {
+          "base_url": "Adresa jídelny",
+          "username": "Uživatelské jméno (volitelné)",
+          "password": "Heslo (volitelné)"
+        },
+        "data_description": {
+          "base_url": "Webová adresa systému E-jídelníček vaší školy.",
+          "username": "Nechte prázdné pro přístup pouze k veřejnému jídelníčku.",
+          "password": "Nechte prázdné pro přístup pouze k veřejnému jídelníčku."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Zadejte znovu heslo k E-jídelníčku",
+        "description": "Uložené heslo pro {name} už nefunguje. Zadejte aktuální heslo, aby tato položka fungovala i nadále.",
+        "data": {
+          "password": "Heslo"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nepodařilo se připojit k E-jídelníčku dané jídelny. Zkontrolujte adresu a zkuste to znovu.",
+      "invalid_auth": "Přihlášení se nezdařilo. Zkontrolujte uživatelské jméno a heslo a zkuste to znovu.",
+      "unsupported_site": "Tato adresa nevypadá jako stránka systému E-jídelníček. Upozorňujeme, že skolnijidelna.online a e-jidelnicek.cz jsou odlišné, nesouvisející systémy jídelen, které tato integrace nepodporuje.",
+      "unknown": "Došlo k neočekávané chybě. Podrobnosti najdete v protokolu Home Assistant."
+    },
+    "abort": {
+      "already_configured": "Tato jídelna a účet už jsou nastaveny.",
+      "reauth_successful": "Opětovné ověření proběhlo úspěšně.",
+      "wrong_account": "Toto heslo patří k jinému účtu, než ke kterému probíhá opětovné ověření."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Možnosti E-jídelníčku",
+        "data": {
+          "update_interval_hours": "Interval aktualizace (hodiny)"
+        },
+        "data_description": {
+          "update_interval_hours": "Jak často obnovovat jídelníček a údaje o objednávkách, v hodinách."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "today": {
+        "name": "Dnes"
+      },
+      "next_serving_day": {
+        "name": "Nejbližší výdejní den"
+      },
+      "ordered_next_serving_day": {
+        "name": "Objednávka na nejbližší výdejní den"
+      },
+      "balance": {
+        "name": "Zůstatek"
+      }
+    },
+    "binary_sensor": {
+      "debt": {
+        "name": "Dluh"
+      }
+    },
+    "calendar": {
+      "menu": {
+        "name": "Jídelníček"
+      }
+    }
+  }
+}

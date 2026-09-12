@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to E-jídelníček",
+        "description": "Enter your canteen's E-jídelníček address (for example `school.example.cz`, with or without `https://`). Username and password are optional -- leave them blank to see only the public menu, without order and balance information.",
+        "data": {
+          "base_url": "Canteen address",
+          "username": "Username (optional)",
+          "password": "Password (optional)"
+        },
+        "data_description": {
+          "base_url": "The web address of your school's E-jídelníček canteen system.",
+          "username": "Leave blank for public-menu-only access.",
+          "password": "Leave blank for public-menu-only access."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter your E-jídelníček password",
+        "description": "The stored password for {name} no longer works. Enter the current password to keep this entry working.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the canteen's E-jídelníček site. Check the address and try again.",
+      "invalid_auth": "Login failed. Check the username and password and try again.",
+      "unsupported_site": "This address does not look like an E-jídelníček site. Note that skolnijidelna.online and e-jidelnicek.cz are different, unrelated canteen systems that this integration does not support.",
+      "unknown": "An unexpected error occurred. Check the Home Assistant log for details."
+    },
+    "abort": {
+      "already_configured": "This canteen and account are already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "wrong_account": "This password belongs to a different account than the one being re-authenticated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "E-jídelníček options",
+        "data": {
+          "update_interval_hours": "Update interval (hours)"
+        },
+        "data_description": {
+          "update_interval_hours": "How often to refresh the menu and order data, in hours."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "today": {
+        "name": "Today"
+      },
+      "next_serving_day": {
+        "name": "Next serving day"
+      },
+      "ordered_next_serving_day": {
+        "name": "Ordered next serving day"
+      },
+      "balance": {
+        "name": "Balance"
+      }
+    },
+    "binary_sensor": {
+      "debt": {
+        "name": "Debt"
+      }
+    },
+    "calendar": {
+      "menu": {
+        "name": "Menu"
+      }
+    }
+  }
+}
