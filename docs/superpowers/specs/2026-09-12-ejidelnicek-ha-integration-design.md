@@ -8,8 +8,8 @@
 ## 1. Purpose
 
 Expose Czech school canteen menus from the **E-jídelníček** system
-(`e-jidelnicek.eu`, by LÁF Electronics) to Home Assistant, so a household can
-see what lunch is being served and automate around it.
+(by LÁF Electronics) to Home Assistant, so a household can see what lunch is
+being served and automate around it.
 
 The integration is **generic across schools**: nothing about any one canteen is
 hardcoded. It is validated against five independent deployments.
@@ -46,12 +46,14 @@ Each canteen is its own host serving the app under a common path:
 https://<host>/ejidelnicek/
 ```
 
-Hosts vary far more than the paths do. The official directory
-(`e-jidelnicek.eu/main/down.php`, region → city → canteen) resolves canteen IDs
-to base URLs, and those include plain `http`, non-standard ports, and even a LAN
-address (`http://192.168.10.233/ejidelnicek` for ZŠ Korunovační). **This is why
-setup takes a URL rather than offering a built-in school picker** — a picker
-would confidently hand out unreachable addresses.
+Hosts vary far more than the paths do. The vendor's own public directory
+(`/main/down.php`, region → city → canteen) resolves canteen IDs to base URLs,
+and those include plain `http`, non-standard ports, and even deployments
+reachable only at a LAN IP address (`http://192.168.10.233/ejidelnicek`).
+**This is why setup takes a URL rather than offering a built-in school
+picker** — a picker would confidently hand out unreachable addresses.
+
+(Deliberately no real school hostnames anywhere in this document: see §10.)
 
 ### 3.2 The menu payload
 
@@ -112,10 +114,10 @@ and the payload is followed by more JavaScript.
 
 ### 3.3 Not every canteen publishes publicly
 
-Verified on `msjesenice.e-jidelnicek.eu` (a kindergarten): all 35 published days
-have empty `polevka`, empty `zakusek`, empty `napoj`, and a single option whose
-`nazev` is literally `"Přihlásit"` ("Log in"). The public view is a placeholder;
-the real menu is behind login.
+Verified on a kindergarten deployment: all 35 published days have empty
+`polevka`, empty `zakusek`, empty `napoj`, and a single option whose `nazev` is
+literally `"Přihlásit"` ("Log in"). The public view is a placeholder; the real
+menu is behind login.
 
 Consequences: the parser must tolerate empty collections everywhere, and setup
 should warn when a parse succeeds but every day is devoid of content.
@@ -420,7 +422,7 @@ The user's explicit requirement was that no private information be published.
 - `.gitignore` blocks `.env*`, `credentials*`, `secrets.yaml`, and `auth_*.html` / `auth_*.json` captures of authenticated pages (which contain a diner's name, account number and balance).
 - **Fixtures for authenticated behaviour are synthetic**: built by taking a public payload and injecting `objednavka`, `cena`, `barva` and a `stravnik` block with invented values. No captured personal data is committed.
 - Public-view fixtures carry no personal fields (`objednavka` is always `0`, `cena` `"0.00"`), and are trimmed to a few days.
-- `README` examples use a placeholder host, not the author's school, so the repo does not advertise which school the family attends.
+- `README` examples use a placeholder host, not the author's school, so the repo does not advertise which school the family attends. The same holds for the fixtures (named by payload shape), for this document and the plan, and — since a plaintext deny-list of real hostnames is itself the leak — for the guard that enforces it: `tests/test_fixtures.py` holds only SHA-256 digests, and scans **every tracked file**, not just `tests/fixtures/`.
 - `Diner` models only balances and flags — never `jmeno`, `cislo`, `vs`, `loginEmail` (§5).
 - Credentials must never be logged. Diagnostics output is redacted.
 - CI runs a secret scan so a future accidental credential commit fails the build.
@@ -429,7 +431,7 @@ The user's explicit requirement was that no private information be published.
 
 Test-driven, parser first, and **entirely offline**.
 
-- **Parser unit tests** over fixtures from five real deployments — `letohrad.zs-stross.cz`, `stross.zs-stross.cz`, `jidelna.betlemska.cz`, `jidelnajakutska.sjp10.cz`, `msjesenice.e-jidelnicek.eu` — covering: per-school `strava_id` (1/2/3), option label variants (`1`,`2`,`D`,`B`), `posunDne` variants (0/1/2), empty soups/dessert/drink, and the placeholder kindergarten.
+- **Parser unit tests** over fixtures from five real deployments, named by payload *shape* rather than by school (a Prague primary school publishing two options plus a diet menu; a second school on the same host publishing a single option; a school publishing three options; a school publishing a long, five-week window; and a kindergarten publishing no public menu at all) — covering: per-school `strava_id` (1/2/3), option label variants (`1`,`2`,`D`,`B`), `posunDne` variants (0/1/2), empty soups/dessert/drink, and the placeholder kindergarten.
 - A dedicated test that `alerg: "17"` resolves to codes `1` and `7` (§3.2).
 - Balanced-brace extraction tests: braces inside dish names, trailing JavaScript, and a page with no payload → `unsupported_site`.
 - Czech decimal comma parsing; `zbyva == -1` → `None`.

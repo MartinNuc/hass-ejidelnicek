@@ -12,21 +12,13 @@ from custom_components.ejidelnicek.parser import (
 )
 from tests.fixture_loader import PUBLIC_FIXTURES, load
 
-# Fixture-shape mapping (fixtures are named by payload shape, not school):
-#   letohrad_public.html   -> canteen_two_options.html
-#   jakutska_public.html   -> canteen_long_window.html
-#   betlemska_public.html  -> canteen_three_options.html
-#   msjesenice_public.html -> canteen_placeholder.html
-_FIXTURES = {
-    "letohrad_public.html": "canteen_two_options.html",
-    "jakutska_public.html": "canteen_long_window.html",
-    "betlemska_public.html": "canteen_three_options.html",
-    "msjesenice_public.html": "canteen_placeholder.html",
-}
-
 
 def _canteen(name, **kwargs):
-    return parse_canteen(extract_payload(load(_FIXTURES.get(name, name))), **kwargs)
+    """Parse one on-disk fixture. Fixtures are named by payload shape, never by
+    the school they were trimmed from -- the shape is the thing under test, and
+    naming them otherwise would say which school the family attends.
+    """
+    return parse_canteen(extract_payload(load(name)), **kwargs)
 
 
 def test_allergen_codes_are_single_characters_not_integers():
@@ -70,8 +62,8 @@ def test_every_deployment_parses_into_at_least_one_meal_type(name):
     assert canteen.allergens
 
 
-def test_letohrad_parses_a_known_day():
-    meal = _canteen("letohrad_public.html").meal_types[0]
+def test_a_two_option_deployment_parses_a_known_day():
+    meal = _canteen("canteen_two_options.html").meal_types[0]
     assert meal.name == "Oběd"
     assert meal.strava_id == 1
     assert meal.order_day_offset == 2
@@ -83,20 +75,20 @@ def test_letohrad_parses_a_known_day():
 
 
 def test_public_view_reports_price_and_remaining_as_unknown_not_zero():
-    day = _canteen("letohrad_public.html").meal_types[0].day_for(datetime.date(2026, 9, 14))
+    day = _canteen("canteen_two_options.html").meal_types[0].day_for(datetime.date(2026, 9, 14))
     assert day.primary.price is None
     assert day.primary.remaining is None
     assert day.primary.ordered == 0
 
 
 def test_per_school_meal_ids_are_not_hardcoded():
-    assert _canteen("jakutska_public.html").meal_types[0].strava_id == 2
-    assert _canteen("betlemska_public.html").meal_types[0].strava_id == 3
+    assert _canteen("canteen_long_window.html").meal_types[0].strava_id == 2
+    assert _canteen("canteen_three_options.html").meal_types[0].strava_id == 3
 
 
 def test_kindergarten_with_no_published_menu_parses_without_crashing():
-    """msjesenice publishes empty soup/dessert/drink on every day."""
-    meal = _canteen("msjesenice_public.html").meal_types[0]
+    """This deployment publishes empty soup/dessert/drink on every day."""
+    meal = _canteen("canteen_placeholder.html").meal_types[0]
     day = meal.day_for(meal.sorted_dates[0])
     assert day.soups == ()
     assert day.dessert is None
@@ -110,7 +102,7 @@ def test_allergen_letters_are_base36_against_real_fixture_data():
     Confirmed against the fixture's own alergZobr rendering:
     'F79A' -> "obsahuje alergeny:1a,7,9,10", and alergenyMap["15"] == "1a - ...".
     """
-    canteen = _canteen("jakutska_public.html")
+    canteen = _canteen("canteen_long_window.html")
     day = canteen.meal_types[0].day_for(datetime.date(2026, 9, 8))
     option = next(o for o in day.options if o.key == "1")
     assert option.allergen_codes == ("15", "7", "9", "10")

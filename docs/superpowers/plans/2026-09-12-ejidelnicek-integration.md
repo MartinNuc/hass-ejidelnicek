@@ -197,7 +197,7 @@ git commit -m "Add integration scaffolding, manifest and CI"
 ### Task 2: Test fixtures
 
 **Files:**
-- Create: `tests/fixtures/{letohrad,stross,betlemska,jakutska,msjesenice}_public.html` (trimmed)
+- Create: `tests/fixtures/{canteen_two_options,canteen_single_option,canteen_three_options,canteen_long_window,canteen_placeholder}.html` (trimmed)
 - Create: `tests/fixtures/ajax_authenticated.json` (**synthetic**)
 - Create: `tests/fixtures/not_ejidelnicek.html`
 - Create: `tests/fixture_loader.py`, `tests/test_fixtures.py`
@@ -259,11 +259,11 @@ from pathlib import Path
 FIXTURES = Path(__file__).parent / "fixtures"
 
 PUBLIC_FIXTURES: tuple[str, ...] = (
-    "letohrad_public.html",
-    "stross_public.html",
-    "betlemska_public.html",
-    "jakutska_public.html",
-    "msjesenice_public.html",
+    "canteen_two_options.html",
+    "canteen_single_option.html",
+    "canteen_three_options.html",
+    "canteen_long_window.html",
+    "canteen_placeholder.html",
 )
 
 
@@ -583,8 +583,8 @@ def test_every_deployment_parses_into_at_least_one_meal_type(name):
     assert canteen.allergens
 
 
-def test_letohrad_parses_a_known_day():
-    meal = _canteen("letohrad_public.html").meal_types[0]
+def test_a_two_option_deployment_parses_a_known_day():
+    meal = _canteen("canteen_two_options.html").meal_types[0]
     assert meal.name == "Oběd"
     assert meal.strava_id == 1
     assert meal.order_day_offset == 2
@@ -596,20 +596,20 @@ def test_letohrad_parses_a_known_day():
 
 
 def test_public_view_reports_price_and_remaining_as_unknown_not_zero():
-    day = _canteen("letohrad_public.html").meal_types[0].day_for(datetime.date(2026, 9, 14))
+    day = _canteen("canteen_two_options.html").meal_types[0].day_for(datetime.date(2026, 9, 14))
     assert day.primary.price is None
     assert day.primary.remaining is None
     assert day.primary.ordered == 0
 
 
 def test_per_school_meal_ids_are_not_hardcoded():
-    assert _canteen("jakutska_public.html").meal_types[0].strava_id == 2
-    assert _canteen("betlemska_public.html").meal_types[0].strava_id == 3
+    assert _canteen("canteen_long_window.html").meal_types[0].strava_id == 2
+    assert _canteen("canteen_three_options.html").meal_types[0].strava_id == 3
 
 
 def test_kindergarten_with_no_published_menu_parses_without_crashing():
-    """msjesenice publishes empty soup/dessert/drink on every day."""
-    meal = _canteen("msjesenice_public.html").meal_types[0]
+    """The placeholder deployment publishes empty soup/dessert/drink on every day."""
+    meal = _canteen("canteen_placeholder.html").meal_types[0]
     day = meal.day_for(meal.sorted_dates[0])
     assert day.soups == ()
     assert day.dessert is None
@@ -822,7 +822,7 @@ from custom_components.ejidelnicek.api import (
 )
 from tests.fixture_loader import load
 
-BASE = "https://letohrad.zs-stross.cz/ejidelnicek/"
+BASE = "https://school.example.cz/ejidelnicek/"
 MENU = BASE + "menu/"
 
 
@@ -853,7 +853,7 @@ def test_scheme_is_only_guessed_when_absent():
 async def test_anonymous_fetch_uses_a_single_request():
     async with ClientSession() as session:
         with aioresponses() as mocked:
-            mocked.get(MENU, status=200, body=load("letohrad_public.html"))
+            mocked.get(MENU, status=200, body=load("canteen_two_options.html"))
             client = EjidelnicekClient(session, BASE)
             snapshot = await client.async_fetch_snapshot()
     assert snapshot.diner is None
@@ -892,7 +892,7 @@ async def test_authenticated_snapshot_merges_order_data_over_the_public_menu():
         with aioresponses() as mocked:
             mocked.get(BASE, status=200, body="<form id='loginForm'></form>")
             mocked.post(BASE + "logincheck", status=200, body="ejidelnicek.setJidelnicek({})")
-            mocked.get(MENU, status=200, body=load("letohrad_public.html"))
+            mocked.get(MENU, status=200, body=load("canteen_two_options.html"))
             # Any datum the client asks for returns the synthetic authenticated day.
             mocked.get(
                 __import__("re").compile(r".*get-jidelnicek.*"),
@@ -907,10 +907,10 @@ async def test_authenticated_snapshot_merges_order_data_over_the_public_menu():
 
 
 async def test_validate_flags_a_canteen_that_publishes_no_menu_publicly():
-    base = "https://msjesenice.e-jidelnicek.eu/ejidelnicek/"
+    base = "https://kindergarten.example.cz/ejidelnicek/"
     async with ClientSession() as session:
         with aioresponses() as mocked:
-            mocked.get(base + "menu/", status=200, body=load("msjesenice_public.html"))
+            mocked.get(base + "menu/", status=200, body=load("canteen_placeholder.html"))
             result = await async_validate(session, base, None, None)
     assert result.menu_is_empty is True
     assert result.base_url == base
@@ -973,7 +973,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.ejidelnicek.const import CONF_BASE_URL, DOMAIN
 from tests.fixture_loader import load
 
-BASE = "https://letohrad.zs-stross.cz/ejidelnicek/"
+BASE = "https://school.example.cz/ejidelnicek/"
 
 
 async def test_setup_and_unload(hass: HomeAssistant):
@@ -981,7 +981,7 @@ async def test_setup_and_unload(hass: HomeAssistant):
                             unique_id=f"{BASE}|public")
     entry.add_to_hass(hass)
     with aioresponses() as mocked:
-        mocked.get(BASE + "menu/", status=200, body=load("letohrad_public.html"),
+        mocked.get(BASE + "menu/", status=200, body=load("canteen_two_options.html"),
                    repeat=True)
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -1063,12 +1063,12 @@ from custom_components.ejidelnicek.const import CONF_BASE_URL, DOMAIN
 from custom_components.ejidelnicek.parser import extract_payload, parse_canteen
 from tests.fixture_loader import load
 
-BASE = "https://letohrad.zs-stross.cz/ejidelnicek/"
+BASE = "https://school.example.cz/ejidelnicek/"
 VALIDATE = "custom_components.ejidelnicek.config_flow.async_validate"
 
 
 def _result(**kwargs):
-    canteen = parse_canteen(extract_payload(load("letohrad_public.html")))
+    canteen = parse_canteen(extract_payload(load("canteen_two_options.html")))
     defaults = {"base_url": BASE, "canteen": canteen, "diner": None,
                 "menu_is_empty": False}
     return ValidationResult(**{**defaults, **kwargs})
@@ -1082,7 +1082,7 @@ async def _submit(hass, user_input):
 
 async def test_anonymous_setup_creates_an_entry(hass: HomeAssistant):
     with patch(VALIDATE, return_value=_result()):
-        result = await _submit(hass, {CONF_BASE_URL: "letohrad.zs-stross.cz"})
+        result = await _submit(hass, {CONF_BASE_URL: "school.example.cz"})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == {CONF_BASE_URL: BASE}
     assert result["result"].unique_id == f"{BASE}|public"
@@ -1199,7 +1199,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.ejidelnicek.const import CONF_BASE_URL, DOMAIN
 from tests.fixture_loader import load
 
-BASE = "https://letohrad.zs-stross.cz/ejidelnicek/"
+BASE = "https://school.example.cz/ejidelnicek/"
 # The fixture publishes 2026-09-14 .. 2026-09-25.
 SATURDAY = datetime.datetime(2026, 9, 19, 12, 0, tzinfo=datetime.UTC)
 MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
@@ -1207,13 +1207,13 @@ MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
 
 async def _setup(hass, now):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_BASE_URL: BASE},
-                            unique_id=f"{BASE}|public", title="Oběd – letohrad")
+                            unique_id=f"{BASE}|public", title="Oběd – school.example.cz")
     entry.add_to_hass(hass)
     with (
         aioresponses() as mocked,
         patch("homeassistant.util.dt.now", return_value=now),
     ):
-        mocked.get(BASE + "menu/", status=200, body=load("letohrad_public.html"),
+        mocked.get(BASE + "menu/", status=200, body=load("canteen_two_options.html"),
                    repeat=True)
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -1222,7 +1222,7 @@ async def _setup(hass, now):
 
 async def test_today_sensor_reports_the_dish_on_a_serving_day(hass: HomeAssistant):
     await _setup(hass, MONDAY)
-    state = hass.states.get("sensor.obed_letohrad_obed_today")
+    state = hass.states.get("sensor.obed_school_example_cz_obed_today")
     assert state.state == "Květák s vejci, brambory s pažitkou"
     assert state.attributes["soup"] == "Dýňový krém se semínky"
     assert state.attributes["options_count"] == 2
@@ -1231,12 +1231,12 @@ async def test_today_sensor_reports_the_dish_on_a_serving_day(hass: HomeAssistan
 
 async def test_today_sensor_is_unknown_on_a_weekend(hass: HomeAssistant):
     await _setup(hass, SATURDAY)
-    assert hass.states.get("sensor.obed_letohrad_obed_today").state == "unknown"
+    assert hass.states.get("sensor.obed_school_example_cz_obed_today").state == "unknown"
 
 
 async def test_next_serving_day_points_past_the_weekend(hass: HomeAssistant):
     await _setup(hass, SATURDAY)
-    state = hass.states.get("sensor.obed_letohrad_obed_next_serving_day")
+    state = hass.states.get("sensor.obed_school_example_cz_obed_next_serving_day")
     assert state.state == "Vepřový řízeček, bramborová kaše, maštěné máslem."
     assert state.attributes["date"] == "2026-09-21"
     assert state.attributes["days_ahead"] == 2
@@ -1244,14 +1244,14 @@ async def test_next_serving_day_points_past_the_weekend(hass: HomeAssistant):
 
 async def test_public_view_reports_no_ordered_option(hass: HomeAssistant):
     await _setup(hass, MONDAY)
-    state = hass.states.get("sensor.obed_letohrad_obed_today")
+    state = hass.states.get("sensor.obed_school_example_cz_obed_today")
     assert state.attributes["ordered_option"] is None
 
 
 async def test_credential_only_entities_are_absent_when_anonymous(hass: HomeAssistant):
     await _setup(hass, MONDAY)
-    assert hass.states.get("sensor.obed_letohrad_balance") is None
-    assert hass.states.get("binary_sensor.obed_letohrad_debt") is None
+    assert hass.states.get("sensor.obed_school_example_cz_balance") is None
+    assert hass.states.get("binary_sensor.obed_school_example_cz_debt") is None
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1311,13 +1311,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.ejidelnicek.const import CONF_BASE_URL, DOMAIN
 from tests.fixture_loader import load
 
-BASE = "https://letohrad.zs-stross.cz/ejidelnicek/"
+BASE = "https://school.example.cz/ejidelnicek/"
 MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
 
 
 async def _setup(hass):
     entry = MockConfigEntry(
-        domain=DOMAIN, title="Oběd – letohrad", unique_id=f"{BASE}|u",
+        domain=DOMAIN, title="Oběd – school.example.cz", unique_id=f"{BASE}|u",
         data={CONF_BASE_URL: BASE, CONF_USERNAME: "u", CONF_PASSWORD: "p"})
     entry.add_to_hass(hass)
     with (
@@ -1328,7 +1328,7 @@ async def _setup(hass):
         mocked.post(BASE + "logincheck", status=200,
                     body="ejidelnicek.setJidelnicek({})", repeat=True)
         mocked.get(BASE + "menu/", status=200,
-                   body=load("letohrad_public.html"), repeat=True)
+                   body=load("canteen_two_options.html"), repeat=True)
         mocked.get(re.compile(r".*get-jidelnicek.*"), status=200,
                    body=load("ajax_authenticated.json"), repeat=True)
         assert await hass.config_entries.async_setup(entry.entry_id)
@@ -1338,13 +1338,13 @@ async def _setup(hass):
 
 async def test_balance_and_debt_appear_with_credentials(hass: HomeAssistant):
     await _setup(hass)
-    assert hass.states.get("sensor.obed_letohrad_balance").state == "297.00"
-    assert hass.states.get("binary_sensor.obed_letohrad_debt").state == "off"
+    assert hass.states.get("sensor.obed_school_example_cz_balance").state == "297.00"
+    assert hass.states.get("binary_sensor.obed_school_example_cz_debt").state == "off"
 
 
 async def test_ordered_sensor_reports_the_booked_option(hass: HomeAssistant):
     await _setup(hass)
-    state = hass.states.get("sensor.obed_letohrad_obed_ordered_next_serving_day")
+    state = hass.states.get("sensor.obed_school_example_cz_obed_ordered_next_serving_day")
     assert state.state == "1"
     assert state.attributes["options_count"] >= 1
 ```
@@ -1400,20 +1400,20 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.ejidelnicek.const import CONF_BASE_URL, DOMAIN
 from tests.fixture_loader import load
 
-BASE = "https://letohrad.zs-stross.cz/ejidelnicek/"
+BASE = "https://school.example.cz/ejidelnicek/"
 MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
-ENTITY = "calendar.obed_letohrad_obed"
+ENTITY = "calendar.obed_school_example_cz_obed"
 
 
 async def _setup(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_BASE_URL: BASE},
-                            unique_id=f"{BASE}|public", title="Oběd – letohrad")
+                            unique_id=f"{BASE}|public", title="Oběd – school.example.cz")
     entry.add_to_hass(hass)
     with (
         aioresponses() as mocked,
         patch("homeassistant.util.dt.now", return_value=MONDAY),
     ):
-        mocked.get(BASE + "menu/", status=200, body=load("letohrad_public.html"),
+        mocked.get(BASE + "menu/", status=200, body=load("canteen_two_options.html"),
                    repeat=True)
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
