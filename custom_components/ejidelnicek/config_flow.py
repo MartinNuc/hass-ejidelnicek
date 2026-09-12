@@ -25,6 +25,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     NumberSelector,
@@ -54,6 +55,25 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 STEP_REAUTH_DATA_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): str})
 
 
+def _map_error(err: Exception) -> str:
+    """Map a validation exception to a translation error key.
+
+    Shared between ``async_step_user`` and ``async_step_reauth_confirm`` so
+    the two never drift out of lockstep. Anything that is not one of this
+    integration's own known error types is logged here (without credentials
+    -- only the exception itself, never the values that produced it) and
+    reported as ``unknown``.
+    """
+    if isinstance(err, CannotConnect):
+        return "cannot_connect"
+    if isinstance(err, InvalidAuth):
+        return "invalid_auth"
+    if isinstance(err, UnsupportedSite):
+        return "unsupported_site"
+    _LOGGER.exception("Unexpected error validating the E-jídelníček configuration")
+    return "unknown"
+
+
 class EjidelnicekConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for E-jídelníček."""
 
@@ -65,50 +85,61 @@ class EjidelnicekConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             username = user_input.get(CONF_USERNAME) or None
             password = user_input.get(CONF_PASSWORD) or None
-            try:
-                result = await async_validate(
-                    async_get_clientsession(self.hass),
-                    user_input[CONF_BASE_URL],
-                    username,
-                    password,
-                )
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except UnsupportedSite:
-                errors["base"] = "unsupported_site"
-            except Exception:
-                _LOGGER.exception("Unexpected error validating the E-jídelníček configuration")
-                errors["base"] = "unknown"
+
+            if bool(username) != bool(password):
+                # Exactly one of the two was given. Storing that would create
+                # an entry that behaves as anonymous under a user-specific
+                # unique_id, silently discarding the typed username -- reject
+                # it instead of guessing what the user meant.
+                errors["base"] = "incomplete_credentials"
             else:
-                await self.async_set_unique_id(f"{result.base_url}|{username or 'public'}")
-                self._abort_if_unique_id_configured()
-
-                host = urlparse(result.base_url).hostname or result.base_url
-                if result.canteen.meal_types:
-                    title = f"{result.canteen.meal_types[0].name} – {host}"  # noqa: RUF001
-                else:
-                    title = host
-
-                data: dict[str, Any] = {CONF_BASE_URL: result.base_url}
-                if username and password:
-                    data[CONF_USERNAME] = username
-                    data[CONF_PASSWORD] = password
-
-                if result.menu_is_empty and not username:
-                    # Some canteens (typically kindergartens) publish nothing
-                    # on the public menu at all -- the entry is still created
-                    # (it may start showing data once credentials are added
-                    # via reconfigure), but this is worth flagging loudly
-                    # since otherwise it looks like the integration is broken.
-                    _LOGGER.warning(
-                        "The public menu at %s appears to be empty; a username "
-                        "and password are probably required to see any menu data",
-                        host,
+                try:
+                    result = await async_validate(
+                        async_get_clientsession(self.hass),
+                        user_input[CONF_BASE_URL],
+                        username,
+                        password,
                     )
+                except Exception as err:  # classified by _map_error
+                    errors["base"] = _map_error(err)
+                else:
+                    # `username` is truthy here iff both credentials were
+                    # given (the mismatch case above already returned) --
+                    # the same single condition drives the unique_id, the
+                    # stored credentials and the empty-menu check below, so
+                    # they cannot diverge from one another.
+                    await self.async_set_unique_id(f"{result.base_url}|{username or 'public'}")
+                    self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(title=title, data=data)
+                    host = urlparse(result.base_url).hostname or result.base_url
+                    if result.canteen.meal_types:
+                        title = f"{result.canteen.meal_types[0].name} – {host}"  # noqa: RUF001
+                    else:
+                        title = host
+
+                    data: dict[str, Any] = {CONF_BASE_URL: result.base_url}
+                    if username:
+                        data[CONF_USERNAME] = username
+                        data[CONF_PASSWORD] = password
+
+                    if result.menu_is_empty and not username:
+                        # Some canteens (typically kindergartens) publish
+                        # nothing on the public menu at all -- the entry is
+                        # still created (it may start showing data once
+                        # credentials are added), but a log line alone is
+                        # invisible to someone completing the wizard, so
+                        # raise a persistent Repairs issue instead.
+                        ir.async_create_issue(
+                            self.hass,
+                            DOMAIN,
+                            f"empty_public_menu_{self.unique_id}",
+                            is_fixable=False,
+                            severity=ir.IssueSeverity.WARNING,
+                            translation_key="empty_public_menu",
+                            translation_placeholders={"host": host},
+                        )
+
+                    return self.async_create_entry(title=title, data=data)
 
         return self.async_show_form(
             step_id="user",
@@ -136,16 +167,17 @@ class EjidelnicekConfigFlow(ConfigFlow, domain=DOMAIN):
                     username,
                     password,
                 )
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except UnsupportedSite:
-                errors["base"] = "unsupported_site"
-            except Exception:
-                _LOGGER.exception("Unexpected error validating reauth credentials")
-                errors["base"] = "unknown"
+            except Exception as err:  # classified by _map_error
+                errors["base"] = _map_error(err)
             else:
+                # Defence-in-depth, not currently reachable: this step never
+                # recomputes a unique_id from the validated result -- it
+                # always reuses the stored username -- so self.unique_id can
+                # never diverge from reauth_entry.unique_id today. The guard
+                # only becomes live if this step ever grows a username field
+                # that lets a submission repoint the entry at a different
+                # account; reauth must never silently allow that (that is
+                # reconfigure's job), so the call stays.
                 self._abort_if_unique_id_mismatch(reason="wrong_account")
                 return self.async_update_reload_and_abort(
                     reauth_entry,

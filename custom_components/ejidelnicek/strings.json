@@ -27,12 +27,19 @@
       "cannot_connect": "Could not connect to the canteen's E-jídelníček site. Check the address and try again.",
       "invalid_auth": "Login failed. Check the username and password and try again.",
       "unsupported_site": "This address does not look like an E-jídelníček site. Note that skolnijidelna.online and e-jidelnicek.cz are different, unrelated canteen systems that this integration does not support.",
-      "unknown": "An unexpected error occurred. Check the Home Assistant log for details."
+      "unknown": "An unexpected error occurred. Check the Home Assistant log for details.",
+      "incomplete_credentials": "Enter both a username and a password, or leave both blank for the public menu."
     },
     "abort": {
       "already_configured": "This canteen and account are already configured.",
       "reauth_successful": "Re-authentication was successful.",
       "wrong_account": "This password belongs to a different account than the one being re-authenticated."
+    }
+  },
+  "issues": {
+    "empty_public_menu": {
+      "title": "The public menu at {host} appears to be empty",
+      "description": "This canteen does not publish its menu publicly -- {host} shows no dishes without logging in. Reconfigure this integration entry with a username and password to see the menu."
     }
   },
   "options": {

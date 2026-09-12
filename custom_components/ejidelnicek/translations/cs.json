@@ -27,12 +27,19 @@
       "cannot_connect": "Nepodařilo se připojit k E-jídelníčku dané jídelny. Zkontrolujte adresu a zkuste to znovu.",
       "invalid_auth": "Přihlášení se nezdařilo. Zkontrolujte uživatelské jméno a heslo a zkuste to znovu.",
       "unsupported_site": "Tato adresa nevypadá jako stránka systému E-jídelníček. Upozorňujeme, že skolnijidelna.online a e-jidelnicek.cz jsou odlišné, nesouvisející systémy jídelen, které tato integrace nepodporuje.",
-      "unknown": "Došlo k neočekávané chybě. Podrobnosti najdete v protokolu Home Assistant."
+      "unknown": "Došlo k neočekávané chybě. Podrobnosti najdete v protokolu Home Assistant.",
+      "incomplete_credentials": "Zadejte uživatelské jméno i heslo, nebo obě pole ponechte prázdná pro veřejný jídelníček."
     },
     "abort": {
       "already_configured": "Tato jídelna a účet už jsou nastaveny.",
       "reauth_successful": "Opětovné ověření proběhlo úspěšně.",
       "wrong_account": "Toto heslo patří k jinému účtu, než ke kterému probíhá opětovné ověření."
+    }
+  },
+  "issues": {
+    "empty_public_menu": {
+      "title": "Veřejný jídelníček na {host} je prázdný",
+      "description": "Tato jídelna nezveřejňuje jídelníček veřejně -- {host} bez přihlášení nezobrazuje žádná jídla. Nastavte v této položce integrace uživatelské jméno a heslo, aby se jídelníček zobrazil."
     }
   },
   "options": {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest.mock import patch
 
 import pytest
@@ -9,6 +10,7 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
+from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ejidelnicek.api import (
@@ -73,6 +75,29 @@ async def test_anonymous_entry_has_no_credential_keys(hass: HomeAssistant):
     assert CONF_PASSWORD not in result["data"]
 
 
+async def test_username_without_password_is_rejected(hass: HomeAssistant):
+    with patch(VALIDATE) as mock_validate:
+        result = await _submit(hass, {CONF_BASE_URL: BASE, CONF_USERNAME: "u"})
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "incomplete_credentials"}
+    mock_validate.assert_not_called()
+
+
+async def test_password_without_username_is_rejected(hass: HomeAssistant):
+    with patch(VALIDATE) as mock_validate:
+        result = await _submit(hass, {CONF_BASE_URL: BASE, CONF_PASSWORD: "p"})
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "incomplete_credentials"}
+    mock_validate.assert_not_called()
+
+
+async def test_title_falls_back_to_host_when_there_are_no_meal_types(hass: HomeAssistant):
+    empty_canteen = replace(_result().canteen, meal_types=())
+    with patch(VALIDATE, return_value=_result(canteen=empty_canteen)):
+        result = await _submit(hass, {CONF_BASE_URL: BASE})
+    assert result["title"] == "school.example.cz"
+
+
 @pytest.mark.parametrize(
     ("error", "expected"),
     [
@@ -110,11 +135,31 @@ async def test_two_children_at_the_same_school_are_both_allowed(hass: HomeAssist
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
-async def test_empty_public_menu_still_creates_an_entry(hass: HomeAssistant, caplog):
+async def test_empty_public_menu_still_creates_an_entry(hass: HomeAssistant):
     with patch(VALIDATE, return_value=_result(menu_is_empty=True)):
         result = await _submit(hass, {CONF_BASE_URL: BASE})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert "probably required" in caplog.text
+
+
+async def test_empty_public_menu_raises_a_repairs_issue(hass: HomeAssistant):
+    with patch(VALIDATE, return_value=_result(menu_is_empty=True)):
+        result = await _submit(hass, {CONF_BASE_URL: BASE})
+    unique_id = result["result"].unique_id
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"empty_public_menu_{unique_id}")
+    assert issue is not None
+    assert issue.is_fixable is False
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert issue.translation_key == "empty_public_menu"
+    assert issue.translation_placeholders == {"host": "school.example.cz"}
+
+
+async def test_credentialed_empty_public_menu_does_not_raise_an_issue(hass: HomeAssistant):
+    """Credentials were given, so an empty *public* menu is not surprising."""
+    with patch(VALIDATE, return_value=_result(menu_is_empty=True)):
+        result = await _submit(hass, {CONF_BASE_URL: BASE, CONF_USERNAME: "u", CONF_PASSWORD: "p"})
+    unique_id = result["result"].unique_id
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"empty_public_menu_{unique_id}")
+    assert issue is None
 
 
 async def test_reauth_updates_the_password(hass: HomeAssistant):
