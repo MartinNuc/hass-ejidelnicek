@@ -28,8 +28,15 @@ if TYPE_CHECKING:
     from .coordinator import EjidelnicekConfigEntry, EjidelnicekCoordinator
     from .models import DayMenu
 
-# See ``_summarize``: intentionally not translated.
-_BLOCKED_PREFIX = "Blocked: "
+# Labels for the event description. Deliberately Czech, not translated -- see
+# ``_describe``. E-jídelníček is a Czech/Slovak-only system and every value
+# these prefix (dish names, soups, drinks) is Czech, so Czech labels are what
+# reads naturally beside them.
+_SOUP_LABEL = "Polévka: "
+_DESSERT_LABEL = "Zákusek: "
+_DRINK_LABEL = "Nápoj: "
+_ALLERGEN_LABEL = "Alergeny: "
+_BLOCKED_PREFIX = "Zablokováno: "
 
 
 async def async_setup_entry(
@@ -48,32 +55,43 @@ async def async_setup_entry(
 def _describe(day: DayMenu) -> str:
     """Build the multi-line event description.
 
-    Lists the soup(s), then every option as ``"<label>: <name>"``, then the
-    dessert, the drink and finally the allergens -- collected across the
-    soups and every option, deduplicated and sorted for a stable rendering.
+    Every line is labelled. Without labels the description is an anonymous
+    list -- the soup, the dessert and the drink all render as bare text, so a
+    reader cannot tell which is which and the soup in particular just looks
+    like another menu option. Menu options carry the canteen's own label
+    (``"1"``, ``"2"``, ``"D"``), so they are already self-identifying.
+
+    Labels are Czech and untranslated on purpose. A calendar event's
+    description is plain data written into the event rather than entity state,
+    so Home Assistant's translation machinery never reaches it; translating
+    would mean picking a language at fetch time and baking it into events that
+    persist. Every value being labelled is Czech regardless. Automations
+    should read the day sensors' attributes (``soup``, ``dessert``, ``drink``,
+    ``options``), which are the machine-readable form of the same facts.
+
+    Allergens are collected across the soups and every option, deduplicated
+    and sorted for a stable rendering.
     """
-    lines: list[str] = [soup.name for soup in day.soups]
+    lines: list[str] = [f"{_SOUP_LABEL}{soup.name}" for soup in day.soups]
     lines.extend(f"{option.label}: {option.name}" for option in day.options)
     if day.dessert:
-        lines.append(day.dessert)
+        lines.append(f"{_DESSERT_LABEL}{day.dessert}")
     if day.drink:
-        lines.append(day.drink)
+        lines.append(f"{_DRINK_LABEL}{day.drink}")
     allergens = {allergen for soup in day.soups for allergen in soup.allergens}
     for option in day.options:
         allergens.update(option.allergens)
     if allergens:
-        lines.append(", ".join(sorted(allergens)))
+        lines.append(f"{_ALLERGEN_LABEL}{', '.join(sorted(allergens))}")
     return "\n".join(lines)
 
 
 def _summarize(day: DayMenu) -> str:
     """Return the event summary: the primary dish, flagged when blocked.
 
-    The "Blocked: " prefix is deliberately untranslated English. A calendar
-    event's summary is plain data written into the event, not entity state, so
-    Home Assistant's translation machinery never reaches it: translating it
-    would mean picking a language at fetch time and baking it into events that
-    persist, and the dish name it prefixes is Czech either way. The
+    The prefix is Czech and untranslated, for the same reason as the labels
+    in ``_describe``: a summary is plain data baked into a persisted event,
+    not entity state, and the dish name it prefixes is Czech either way. The
     machine-readable form of the same fact is the ``is_blocked`` attribute on
     the day sensors, which is what an automation should branch on.
     """

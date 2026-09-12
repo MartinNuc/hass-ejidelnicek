@@ -125,7 +125,7 @@ def _day(*, is_blocked: bool, options: tuple[MenuOption, ...], **overrides) -> D
 
 def test_summarize_prefixes_blocked_days():
     day = _day(is_blocked=True, options=(_option("1", name="Kuřecí řízek", primary=True),))
-    assert _summarize(day) == "Blocked: Kuřecí řízek"
+    assert _summarize(day) == "Zablokováno: Kuřecí řízek"
 
 
 def test_summarize_is_unprefixed_when_not_blocked():
@@ -142,4 +142,44 @@ def test_describe_collects_dedupes_and_sorts_allergens_from_soups_and_options():
         options=(_option("1", name="Kuřecí řízek", allergens=("01 - Obilniny", "07 - Mléko")),),
     )
     description = _describe(day)
-    assert description == ("Polévka\n1: Kuřecí řízek\nOvoce\nVoda\n01 - Obilniny, 07 - Mléko")
+    assert description == (
+        "Polévka: Polévka\n"
+        "1: Kuřecí řízek\n"
+        "Zákusek: Ovoce\n"
+        "Nápoj: Voda\n"
+        "Alergeny: 01 - Obilniny, 07 - Mléko"
+    )
+
+
+def test_describe_labels_every_line_so_the_soup_is_identifiable():
+    """Unlabelled, the soup renders as just another anonymous line.
+
+    That is the defect this labelling fixes: a reader could not tell which
+    line was the soup, which the dessert and which the drink.
+    """
+    day = _day(
+        is_blocked=False,
+        dessert="Salát bar",
+        drink="Voda, čaj",
+        soups=(Dish(name="Dýňový krém", allergens=(), allergen_codes=()),),
+        options=(_option("1", name="Květák s vejci", primary=True),),
+    )
+    lines = _describe(day).split("\n")
+    assert lines[0] == "Polévka: Dýňový krém"
+    assert lines[1] == "1: Květák s vejci"
+    assert lines[2] == "Zákusek: Salát bar"
+    assert lines[3] == "Nápoj: Voda, čaj"
+    # Every line must carry an identifying prefix -- no bare values.
+    assert all(": " in line for line in lines)
+
+
+def test_describe_omits_labels_for_absent_parts():
+    """A day with no soup/dessert/drink must not emit empty labelled lines."""
+    day = _day(
+        is_blocked=False,
+        dessert=None,
+        drink=None,
+        soups=(),
+        options=(_option("1", name="Guláš", primary=True),),
+    )
+    assert _describe(day) == "1: Guláš"

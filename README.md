@@ -1,3 +1,5 @@
+<img src="brands/custom_integrations/ejidelnicek/logo.png" alt="E-jídelníček" height="72">
+
 # E-jídelníček for Home Assistant
 
 A Home Assistant custom integration that reads Czech school canteen menus
@@ -9,6 +11,15 @@ published by the **E-jídelníček** system, at any deployment of the form
 > **Not compatible** with `skolnijidelna.online` or `e-jidelnicek.cz`. Despite
 > the similar name, those are different products with a different API; this
 > integration does not support them.
+
+## A note on the icon
+
+Home Assistant takes integration icons from the central
+[home-assistant/brands](https://github.com/home-assistant/brands) repository,
+not from the integration itself, so until this integration's artwork is
+accepted there Home Assistant shows its default placeholder icon. That is
+expected and does not indicate a broken install. The finished assets and
+submission instructions live in [`brands/`](brands/).
 
 ## What you get
 
