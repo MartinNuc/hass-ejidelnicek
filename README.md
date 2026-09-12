@@ -14,12 +14,16 @@ published by the **E-jídelníček** system, at any deployment of the form
 
 ## A note on the icon
 
-Home Assistant takes integration icons from the central
-[home-assistant/brands](https://github.com/home-assistant/brands) repository,
-not from the integration itself, so until this integration's artwork is
-accepted there Home Assistant shows its default placeholder icon. That is
-expected and does not indicate a broken install. The finished assets and
-submission instructions live in [`brands/`](brands/).
+HACS reads brand assets shipped inside the integration, at
+`custom_components/ejidelnicek/brand/`, so the icon shows up in HACS as soon
+as the integration is installed.
+
+Home Assistant's own *Devices & Services* page is separate: it takes icons
+from the central [home-assistant/brands](https://github.com/home-assistant/brands)
+repository, so it shows a placeholder there until this artwork is accepted
+upstream. That is expected and does not indicate a broken install. The same
+assets, laid out the way that repository expects, plus submission
+instructions, are in [`brands/`](brands/).
 
 ## What you get
 

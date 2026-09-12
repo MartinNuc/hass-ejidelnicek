@@ -1,10 +1,17 @@
 # Brand assets
 
-Home Assistant does not read an integration's icon from the integration
-itself. Icons come from the central [home-assistant/brands][brands]
-repository, which HA and HACS fetch from `brands.home-assistant.io`. Until
-these files are accepted there, the integration shows Home Assistant's
-default placeholder icon — that is expected, not a fault in the install.
+Two consumers, two places:
+
+* **HACS** checks `custom_components/ejidelnicek/brand/` inside this repo
+  first, and only falls back to the brands repository. Those in-repo copies
+  exist, so HACS shows the icon immediately — and its validation requires
+  one or the other to be present.
+* **Home Assistant's own integrations page** reads only the central
+  [home-assistant/brands][brands] repository, via `brands.home-assistant.io`.
+  Until these files are accepted there, that page shows the default
+  placeholder icon — expected, not a fault in the install.
+
+The two copies are identical; `brands/tools/` regenerates both.
 
 ## Files
 
