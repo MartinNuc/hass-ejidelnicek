@@ -364,8 +364,15 @@ drink and allergens. Blocked days are marked in the summary.
 
 **Single `user` step:** URL (required), username and password (both optional,
 labelled "leave blank for public menu only"). Validation performs a real fetch
-and parse, and the created entry is titled with the canteen's meal-type name and
-host.
+and parse, and the created entry is titled with the canteen's host alone.
+
+The title deliberately excludes the meal-type name. One entry can carry several
+meal types — kindergartens in this system publish breakfast, lunch and a snack —
+so the device identifies the canteen while each entity name carries its own
+`{meal_type}` placeholder. Putting the meal type in both produced duplicated
+entity ids like `sensor.obed_<host>_obed_today`, and omitting it from the
+per-meal entity names left a multi-meal canteen showing two entities both called
+"Today", distinguished only by Home Assistant's `_2` suffix.
 
 **`unique_id` = `<normalised base url>|<username or "public">`.** Including the
 username means two children at the same school are two valid entries rather than
