@@ -1,15 +1,13 @@
 """Tests for config entry setup/unload and coordinator error mapping.
 
-Two platforms do not exist yet: ``binary_sensor.py`` and ``calendar.py``
-(Tasks 11-12). ``const.PLATFORMS`` already lists all three -- that constant
-stays production-accurate -- but forwarding to a platform module that is not
-on disk raises ``ModuleNotFoundError``, so the tests below patch
-``custom_components.ejidelnicek.PLATFORMS`` down to the platforms that
-genuinely exist yet. Task 11 adds ``Platform.BINARY_SENSOR`` to
-``_EXISTING_PLATFORMS``, Task 12 adds ``Platform.CALENDAR``, and once the
-list matches ``const.PLATFORMS`` the patch is deleted entirely.
+``calendar.py`` does not exist yet (Task 12). Config entry setup is limited
+to the platforms that genuinely exist on disk by the shared
+``_only_forward_to_existing_platforms`` autouse fixture in
+``tests/conftest.py`` -- see its docstring for why, and what Task 12 needs to
+do to it.
 
-``sensor.py`` (Task 10) is real and genuinely exercised here:
+``sensor.py`` (Task 10) and ``binary_sensor.py`` (Task 11) are real and
+genuinely exercised here:
 ``test_setup_and_unload`` forwards to the real platform and exercises real
 sensor entity setup/teardown as a side effect of config entry setup/unload.
 Dedicated, detailed sensor behaviour (state values, attributes, midnight
@@ -24,12 +22,10 @@ from __future__ import annotations
 
 import re
 from datetime import timedelta
-from unittest.mock import patch
 
-import pytest
 from aioresponses import aioresponses
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -40,17 +36,6 @@ from tests.fixture_loader import load
 BASE = "https://school.example.cz/ejidelnicek/"
 MENU = BASE + "menu/"
 AJAX_RE = re.compile(r".*get-jidelnicek.*")
-
-# See the module docstring: widen this as Tasks 11-12 add the remaining
-# platforms, then delete the patch once it matches const.PLATFORMS.
-_EXISTING_PLATFORMS = [Platform.SENSOR]
-
-
-@pytest.fixture(autouse=True)
-def _only_forward_to_existing_platforms():
-    """Limit config entry setup to platforms that actually exist on disk."""
-    with patch("custom_components.ejidelnicek.PLATFORMS", _EXISTING_PLATFORMS):
-        yield
 
 
 async def test_setup_and_unload(hass: HomeAssistant) -> None:

@@ -64,7 +64,7 @@
         "name": "Nejbližší výdejní den"
       },
       "ordered_next_serving_day": {
-        "name": "Objednávka na nejbližší výdejní den"
+        "name": "{meal_type}: objednávka na nejbližší výdejní den"
       },
       "balance": {
         "name": "Zůstatek"

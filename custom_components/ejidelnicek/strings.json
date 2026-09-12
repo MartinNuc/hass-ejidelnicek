@@ -64,7 +64,7 @@
         "name": "Next serving day"
       },
       "ordered_next_serving_day": {
-        "name": "Ordered next serving day"
+        "name": "{meal_type} ordered next serving day"
       },
       "balance": {
         "name": "Balance"

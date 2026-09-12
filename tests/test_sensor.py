@@ -15,10 +15,8 @@ and yields opaque failures.
 from __future__ import annotations
 
 import datetime
-from unittest.mock import patch
 
 from aioresponses import aioresponses
-from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
@@ -45,13 +43,14 @@ SATURDAY = datetime.datetime(2026, 9, 19, 12, 0, tzinfo=datetime.UTC)
 MONDAY_NIGHT = datetime.datetime(2026, 9, 15, 6, 59, 0, tzinfo=datetime.UTC)
 LOCAL_MIDNIGHT = datetime.datetime(2026, 9, 15, 7, 0, 1, tzinfo=datetime.UTC)
 
-# Only sensor.py exists so far; see tests/test_init.py for why this is
-# patched down rather than stood in with mock_platform.
-_EXISTING_PLATFORMS = [Platform.SENSOR]
-
 
 async def _setup(hass: HomeAssistant) -> MockConfigEntry:
-    """Set up an anonymous config entry against the two-option fixture."""
+    """Set up an anonymous config entry against the two-option fixture.
+
+    Platform forwarding is limited to platforms that exist on disk by the
+    shared ``_only_forward_to_existing_platforms`` autouse fixture in
+    ``tests/conftest.py``.
+    """
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_BASE_URL: BASE},
@@ -59,10 +58,7 @@ async def _setup(hass: HomeAssistant) -> MockConfigEntry:
         title="Oběd – school.example.cz",  # noqa: RUF001
     )
     entry.add_to_hass(hass)
-    with (
-        patch("custom_components.ejidelnicek.PLATFORMS", _EXISTING_PLATFORMS),
-        aioresponses() as mocked,
-    ):
+    with aioresponses() as mocked:
         mocked.get(MENU, status=200, body=load("canteen_two_options.html"), repeat=True)
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -102,6 +98,22 @@ async def test_public_view_reports_no_ordered_option(hass: HomeAssistant, freeze
     freezer.move_to(MONDAY)
     await _setup(hass)
     assert hass.states.get(TODAY_ID).attributes["ordered_option"] is None
+
+
+async def test_public_view_never_shows_a_price_or_remaining_count(hass: HomeAssistant, freezer):
+    """An anonymous entry must not report a fabricated price or remaining count.
+
+    This is currently only guaranteed transitively through ``parser.py``;
+    asserting it here guards against a regression in either ``parser.py`` or
+    the ``float(...)`` conversion in ``sensor.py``'s ``_option_attributes``.
+    Contrast with ``tests/test_credentialed_entities.py``, where a
+    credentialed entry does report a real price (``37.00``).
+    """
+    freezer.move_to(MONDAY)
+    await _setup(hass)
+    option = hass.states.get(TODAY_ID).attributes["options"][0]
+    assert option["price"] is None
+    assert option["remaining"] is None
 
 
 async def test_credential_only_entities_are_absent_when_anonymous(hass: HomeAssistant, freezer):
