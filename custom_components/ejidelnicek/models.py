@@ -11,10 +11,8 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
-
-from homeassistant.util import slugify
 
 
 @dataclass(frozen=True)
@@ -111,11 +109,6 @@ class MealType:
                 return self.days[value]
         return None
 
-    @property
-    def slug(self) -> str:
-        """Return an ASCII, snake_case slug of the meal type's name."""
-        return slugify(self.name)
-
 
 @dataclass(frozen=True)
 class Diner:
@@ -152,8 +145,17 @@ class Canteen:
 
 @dataclass(frozen=True)
 class Snapshot:
-    """A single fetched, self-consistent view of the canteen and diner."""
+    """A single fetched, self-consistent view of the canteen and diner.
+
+    ``fetched_at`` is excluded from equality (``compare=False``) on purpose.
+    The coordinator runs with ``always_update=False``, which skips writing
+    entity state when the new snapshot equals the previous one -- the reason
+    every model here is frozen and comparable. A timestamp that changes on
+    every poll would make ``__eq__`` unconditionally false and nullify that
+    entirely. It is kept (rather than dropped) because diagnostics reports it,
+    which is the one place "how old is this data?" is worth knowing.
+    """
 
     canteen: Canteen
     diner: Diner | None
-    fetched_at: datetime.datetime
+    fetched_at: datetime.datetime = field(compare=False)

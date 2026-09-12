@@ -258,8 +258,15 @@ class Canteen:
 class Snapshot:                       # coordinator payload
     canteen: Canteen
     diner: Diner | None               # None when anonymous
-    fetched_at: datetime.datetime
+    fetched_at: datetime.datetime = field(compare=False)
 ```
+
+`fetched_at` is excluded from equality. The coordinator runs with
+`always_update=False`, which is the whole reason these dataclasses are frozen
+and comparable: a poll that returns unchanged data must not churn entity
+state. A timestamp that changes every poll would make `Snapshot.__eq__`
+unconditionally false and silently nullify that. It is still reported by
+diagnostics, which is where "how old is this data?" is worth knowing.
 
 `Diner` intentionally omits `jmeno`, `cislo`, `vs` and `loginEmail`. The
 integration has no use for them, and not modelling them means they cannot leak
@@ -334,8 +341,10 @@ failures, which raise `ConfigEntryAuthFailed`.
 ## 8. Entities
 
 One HA device per config entry (the canteen). Entities use
-`has_entity_name = True` with translation keys. `<meal>` is the slugified meal
-type name, iterated from `stravaMap`, so multi-meal canteens work.
+`has_entity_name = True` with translation keys. Each per-meal-type entity
+carries its meal type name as a translation placeholder and Home Assistant
+slugifies the resulting entity *name* into the entity id, so multi-meal
+canteens work without the model layer knowing anything about slugs.
 
 Always:
 

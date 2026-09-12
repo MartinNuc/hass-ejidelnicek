@@ -3,7 +3,13 @@
 import datetime
 from decimal import Decimal
 
-from custom_components.ejidelnicek.models import DayMenu, MealType, MenuOption
+from custom_components.ejidelnicek.models import (
+    Canteen,
+    DayMenu,
+    MealType,
+    MenuOption,
+    Snapshot,
+)
 
 
 def _option(key: str, *, ordered: int = 0, primary: bool = False) -> MenuOption:
@@ -85,6 +91,31 @@ def test_next_serving_day_is_none_when_the_menu_has_run_out():
     assert meal.next_serving_day(friday) is None
 
 
-def test_slug_is_ascii_and_snake_case():
-    meal = MealType(index="0", strava_id=2, name="Oběd menu", order_day_offset=2, days={})
-    assert meal.slug == "obed_menu"
+def test_two_snapshots_that_differ_only_in_fetched_at_are_equal():
+    """``fetched_at`` must not defeat the coordinator's ``always_update=False``.
+
+    Home Assistant skips writing entity state when the new coordinator data
+    equals the previous data. A timestamp that changes on every poll would make
+    ``Snapshot.__eq__`` unconditionally false, so every poll would churn every
+    entity -- nullifying the reason these models are frozen and comparable at
+    all.
+    """
+    canteen = Canteen(allergens={}, diets={}, meal_types=())
+    first = Snapshot(
+        canteen=canteen,
+        diner=None,
+        fetched_at=datetime.datetime(2026, 9, 14, 6, 0, tzinfo=datetime.UTC),
+    )
+    second = Snapshot(
+        canteen=canteen,
+        diner=None,
+        fetched_at=datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC),
+    )
+    assert first == second
+    # ...but a real difference still compares unequal.
+    other = Snapshot(
+        canteen=Canteen(allergens={"1": "Obilniny"}, diets={}, meal_types=()),
+        diner=None,
+        fetched_at=first.fetched_at,
+    )
+    assert first != other

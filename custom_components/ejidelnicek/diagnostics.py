@@ -42,11 +42,12 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry.
 
-    Includes the base URL, whether credentials are configured (a bool, never
-    the values), the poll interval, each meal type's name and known-day
-    count, the overall published date range, and the diner's debt/ordering
-    flags -- but never the diner's balance, the entry's ``unique_id`` or
-    ``entry_id``, or any other field that could identify the diner.
+    Includes the base URL, when the snapshot was fetched, whether credentials
+    are configured (a bool, never the values), the poll interval, each meal
+    type's name and known-day count, the overall published date range, and the
+    diner's debt/ordering flags -- but never the diner's balance, the entry's
+    ``unique_id`` or ``entry_id``, or any other field that could identify the
+    diner.
     """
     coordinator = entry.runtime_data
     client = coordinator.client
@@ -89,6 +90,7 @@ async def async_get_config_entry_diagnostics(
     return {
         "entry": entry_diagnostics,
         "base_url": client.base_url,
+        "fetched_at": snapshot.fetched_at.isoformat(),
         "has_credentials": client.has_credentials,
         "update_interval_hours": update_interval_hours,
         "canteen": {
