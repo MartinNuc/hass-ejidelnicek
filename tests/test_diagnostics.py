@@ -29,6 +29,11 @@ AJAX_RE = re.compile(r".*get-jidelnicek.*")
 _LOGIN_FORM = "<form id='loginForm'></form>"
 _LOGIN_OK = "ejidelnicek.setJidelnicek({})"
 
+# A distinctive sentinel -- not "u" or anything that could collide with
+# ordinary text elsewhere in the payload (unlike a real username, this must
+# never appear ANYWHERE in the serialised diagnostics, unique_id included).
+SENTINEL_USERNAME = "zzz_sentinel_diner_username_zzz"
+
 # No freezer here: the diagnostics content asserted below (redaction, meal
 # type names, day counts, the static date range) does not depend on "today",
 # and freezing time after `hass_client`'s access token is minted (during
@@ -40,8 +45,12 @@ async def _setup_with_credentials(hass: HomeAssistant) -> MockConfigEntry:
     """Set up a credentialed config entry against the authenticated fixture."""
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_BASE_URL: BASE, CONF_USERNAME: "diner_u", CONF_PASSWORD: "sup3rsecret"},
-        unique_id=f"{BASE}|diner_u",
+        data={
+            CONF_BASE_URL: BASE,
+            CONF_USERNAME: SENTINEL_USERNAME,
+            CONF_PASSWORD: "sup3rsecret",
+        },
+        unique_id=f"{BASE}|{SENTINEL_USERNAME}",
         title="school.example.cz",
     )
     entry.add_to_hass(hass)
@@ -72,13 +81,17 @@ async def _setup_anonymous(hass: HomeAssistant) -> MockConfigEntry:
 
 
 async def test_diagnostics_redact_credentials(hass: HomeAssistant, hass_client):
-    """A diagnostics download must never leak the canteen password.
+    """Neither the password nor the username may leak, anywhere in the payload.
 
-    The username also comes back redacted from ``entry.data`` -- but it is
-    not scrubbed from ``entry.unique_id`` (which structurally embeds it, by
-    the Task 9 config-flow design, to tell two diners at the same school
-    apart); that is a pre-existing, reviewed choice this test does not
-    relitigate. The password never appears anywhere, unique_id included.
+    This is the invariant a prior version of this test got wrong: it's not
+    enough for ``entry.data.username``/``entry.data.password`` to come back
+    redacted -- ``entry.unique_id`` is built by ``config_flow.py`` as
+    ``f"{base_url}|{username}"``, so a diagnostics implementation that dumps
+    the whole config entry (even through ``async_redact_data``, which
+    matches by *key*, not by scanning string values) would still leak the
+    username in cleartext there. ``diagnostics.py`` avoids this by never
+    including ``unique_id`` (or ``entry_id``) at all -- so this test checks
+    the full serialised blob, not just the ``data`` sub-dict.
     """
     entry = await _setup_with_credentials(hass)
     data = await get_diagnostics_for_config_entry(hass, hass_client, entry)
@@ -86,6 +99,20 @@ async def test_diagnostics_redact_credentials(hass: HomeAssistant, hass_client):
     assert data["entry"]["data"]["username"] == "**REDACTED**"
     serialised = json.dumps(data, default=str)
     assert "sup3rsecret" not in serialised
+    assert SENTINEL_USERNAME not in serialised
+
+
+async def test_diagnostics_entry_omits_unique_id_and_entry_id(hass: HomeAssistant, hass_client):
+    """The entry dict is a curated allowlist, not an ``entry.as_dict()`` dump.
+
+    ``unique_id`` and ``entry_id`` are the two identifiers that would let a
+    diagnostics dump be linked back to a specific diner/entry; neither earns
+    its place for debugging, so both are left out entirely rather than
+    redacted-in-place.
+    """
+    entry = await _setup_with_credentials(hass)
+    data = await get_diagnostics_for_config_entry(hass, hass_client, entry)
+    assert set(data["entry"]) == {"title", "version", "source", "options", "data"}
 
 
 async def test_diagnostics_never_leak_the_diners_balance(hass: HomeAssistant, hass_client):

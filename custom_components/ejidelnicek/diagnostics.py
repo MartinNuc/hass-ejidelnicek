@@ -7,6 +7,19 @@ identity of that kind to leak here -- but the balance figures themselves are
 still withheld: a diagnostics dump is routinely pasted into a public GitHub
 issue, and a family's account balance is not needed to debug this
 integration, so it is reported as redacted rather than as a real number.
+
+The config entry itself is deliberately NOT dumped via ``entry.as_dict()``:
+that includes a top-level ``unique_id``, which ``config_flow.py`` builds as
+``f"{base_url}|{username}"`` specifically so two diners at one school can
+each get their own entry -- a decision about entry identity, never reviewed
+for what belongs in a diagnostics dump. Passing that whole dict through
+``async_redact_data`` would NOT catch it either: redaction there matches by
+*key* (``username``/``password``), not by scanning string values, so the
+username would still leak in cleartext inside ``unique_id``. ``entry_id`` is
+dropped for the same reason (one more identifier that helps nothing). Instead
+a curated allowlist is returned below -- the same approach already used for
+``canteen`` and ``diner`` -- so a future field HA adds to ``ConfigEntry``
+cannot silently reappear here unreviewed.
 """
 
 from __future__ import annotations
@@ -32,8 +45,8 @@ async def async_get_config_entry_diagnostics(
     Includes the base URL, whether credentials are configured (a bool, never
     the values), the poll interval, each meal type's name and known-day
     count, the overall published date range, and the diner's debt/ordering
-    flags -- but never the diner's balance or any field that could identify
-    them.
+    flags -- but never the diner's balance, the entry's ``unique_id`` or
+    ``entry_id``, or any other field that could identify the diner.
     """
     coordinator = entry.runtime_data
     client = coordinator.client
@@ -65,8 +78,16 @@ async def async_get_config_entry_diagnostics(
             "ordering_disabled": diner.ordering_disabled,
         }
 
+    entry_diagnostics = {
+        "title": entry.title,
+        "version": entry.version,
+        "source": entry.source,
+        "options": dict(entry.options),
+        "data": async_redact_data(dict(entry.data), TO_REDACT),
+    }
+
     return {
-        "entry": async_redact_data(entry.as_dict(), TO_REDACT),
+        "entry": entry_diagnostics,
         "base_url": client.base_url,
         "has_credentials": client.has_credentials,
         "update_interval_hours": update_interval_hours,
