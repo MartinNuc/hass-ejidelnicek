@@ -20,7 +20,7 @@ from tests.fixture_loader import load
 BASE = "https://school.example.cz/ejidelnicek/"
 MENU = BASE + "menu/"
 
-ENTITY = "calendar.obed_school_example_cz_menu"
+ENTITY = "calendar.school_example_cz_obed_menu"
 
 # The fixture publishes 2026-09-14 .. 2026-09-25 (Mon .. Fri, two weeks).
 MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
@@ -32,7 +32,7 @@ async def _setup(hass: HomeAssistant) -> MockConfigEntry:
         domain=DOMAIN,
         data={CONF_BASE_URL: BASE},
         unique_id=f"{BASE}|public",
-        title="Oběd – school.example.cz",  # noqa: RUF001
+        title="school.example.cz",
     )
     entry.add_to_hass(hass)
     with aioresponses() as mocked:

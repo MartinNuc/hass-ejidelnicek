@@ -58,10 +58,10 @@
   "entity": {
     "sensor": {
       "today": {
-        "name": "Today"
+        "name": "{meal_type} today"
       },
       "next_serving_day": {
-        "name": "Next serving day"
+        "name": "{meal_type} next serving day"
       },
       "ordered_next_serving_day": {
         "name": "{meal_type} ordered next serving day"
@@ -77,7 +77,7 @@
     },
     "calendar": {
       "menu": {
-        "name": "Menu"
+        "name": "{meal_type} menu"
       }
     }
   }

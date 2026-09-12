@@ -121,6 +121,9 @@ class EjidelnicekDaySensor(EjidelnicekEntity, SensorEntity):
         self._which = which
         self._attr_translation_key = which
         self._attr_unique_id = f"{entry.entry_id}_{meal_index}_{which}"
+        meal_type = coordinator.data.canteen.meal_type_by_index(meal_index)
+        meal_name = meal_type.name if meal_type is not None else meal_index
+        self._attr_translation_placeholders = {"meal_type": meal_name}
 
     def _day(self) -> DayMenu | None:
         """Return the relevant DayMenu for this sensor's meal type, or None."""

@@ -58,10 +58,10 @@
   "entity": {
     "sensor": {
       "today": {
-        "name": "Dnes"
+        "name": "{meal_type}: dnes"
       },
       "next_serving_day": {
-        "name": "Nejbližší výdejní den"
+        "name": "{meal_type}: nejbližší výdejní den"
       },
       "ordered_next_serving_day": {
         "name": "{meal_type}: objednávka na nejbližší výdejní den"
@@ -77,7 +77,7 @@
     },
     "calendar": {
       "menu": {
-        "name": "Jídelníček"
+        "name": "{meal_type}: jídelníček"
       }
     }
   }

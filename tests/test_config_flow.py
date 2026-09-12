@@ -57,7 +57,7 @@ async def test_anonymous_setup_creates_an_entry(hass: HomeAssistant):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == {CONF_BASE_URL: BASE}
     assert result["result"].unique_id == f"{BASE}|public"
-    assert result["title"] == "Oběd – school.example.cz"  # noqa: RUF001
+    assert result["title"] == "school.example.cz"
 
 
 async def test_credentials_are_stored_and_change_the_unique_id(hass: HomeAssistant):

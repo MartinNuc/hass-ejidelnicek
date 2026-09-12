@@ -1,10 +1,12 @@
 """Tests for the day sensors: state, attributes, and midnight rollover.
 
 Entity ids are asserted against what Home Assistant actually registers
-(``sensor.obed_school_example_cz_today`` /
-``sensor.obed_school_example_cz_next_serving_day``), derived from the entry
-title ``"Oběd - school.example.cz"`` and the ``today``/``next_serving_day``
-translation keys -- not guessed.
+(``sensor.school_example_cz_obed_today`` /
+``sensor.school_example_cz_obed_next_serving_day``), derived from the entry
+title ``"school.example.cz"`` (the host alone -- the device identifies the
+canteen, not any one meal type) and the ``today``/``next_serving_day``
+translation keys, each carrying the meal type ("Oběd") as a placeholder --
+not guessed.
 
 All time control uses the ``freezer`` fixture (freezegun, via
 ``pytest_freezer``), never ``patch("homeassistant.util.dt.now")``: patching
@@ -28,8 +30,8 @@ from tests.fixture_loader import load
 BASE = "https://school.example.cz/ejidelnicek/"
 MENU = BASE + "menu/"
 
-TODAY_ID = "sensor.obed_school_example_cz_today"
-NEXT_SERVING_DAY_ID = "sensor.obed_school_example_cz_next_serving_day"
+TODAY_ID = "sensor.school_example_cz_obed_today"
+NEXT_SERVING_DAY_ID = "sensor.school_example_cz_obed_next_serving_day"
 
 # The fixture publishes 2026-09-14 .. 2026-09-25 (Mon .. Fri, two weeks).
 MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
@@ -45,17 +47,12 @@ LOCAL_MIDNIGHT = datetime.datetime(2026, 9, 15, 7, 0, 1, tzinfo=datetime.UTC)
 
 
 async def _setup(hass: HomeAssistant) -> MockConfigEntry:
-    """Set up an anonymous config entry against the two-option fixture.
-
-    Platform forwarding is limited to platforms that exist on disk by the
-    shared ``_only_forward_to_existing_platforms`` autouse fixture in
-    ``tests/conftest.py``.
-    """
+    """Set up an anonymous config entry against the two-option fixture."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_BASE_URL: BASE},
         unique_id=f"{BASE}|public",
-        title="Oběd – school.example.cz",  # noqa: RUF001
+        title="school.example.cz",
     )
     entry.add_to_hass(hass)
     with aioresponses() as mocked:
@@ -120,8 +117,8 @@ async def test_credential_only_entities_are_absent_when_anonymous(hass: HomeAssi
     """Task 11's balance sensor and debt binary sensor do not exist yet."""
     freezer.move_to(MONDAY)
     await _setup(hass)
-    assert hass.states.get("sensor.obed_school_example_cz_balance") is None
-    assert hass.states.get("binary_sensor.obed_school_example_cz_debt") is None
+    assert hass.states.get("sensor.school_example_cz_balance") is None
+    assert hass.states.get("binary_sensor.school_example_cz_debt") is None
 
 
 async def test_midnight_rollover_updates_today_without_a_repoll(hass: HomeAssistant, freezer):

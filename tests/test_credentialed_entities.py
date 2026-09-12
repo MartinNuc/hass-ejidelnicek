@@ -28,9 +28,9 @@ AJAX_RE = re.compile(r".*get-jidelnicek.*")
 # The authenticated fixture covers exactly this one day.
 MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
 
-BALANCE_ID = "sensor.obed_school_example_cz_balance"
-DEBT_ID = "binary_sensor.obed_school_example_cz_debt"
-ORDERED_ID = "sensor.obed_school_example_cz_obed_ordered_next_serving_day"
+BALANCE_ID = "sensor.school_example_cz_balance"
+DEBT_ID = "binary_sensor.school_example_cz_debt"
+ORDERED_ID = "sensor.school_example_cz_obed_ordered_next_serving_day"
 
 _LOGIN_FORM = "<form id='loginForm'></form>"
 _LOGIN_OK = "ejidelnicek.setJidelnicek({})"
@@ -56,7 +56,7 @@ async def _setup(hass: HomeAssistant, *, ajax_body: str | None = None) -> MockCo
         domain=DOMAIN,
         data={CONF_BASE_URL: BASE, CONF_USERNAME: "u", CONF_PASSWORD: "p"},
         unique_id=f"{BASE}|u",
-        title="Oběd – school.example.cz",  # noqa: RUF001
+        title="school.example.cz",
     )
     entry.add_to_hass(hass)
     with aioresponses() as mocked:

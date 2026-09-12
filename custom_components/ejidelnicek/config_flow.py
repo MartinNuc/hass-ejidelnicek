@@ -111,11 +111,16 @@ class EjidelnicekConfigFlow(ConfigFlow, domain=DOMAIN):
                     await self.async_set_unique_id(f"{result.base_url}|{username or 'public'}")
                     self._abort_if_unique_id_configured()
 
+                    # The title is the host alone, never a meal type: one
+                    # entry's device can carry several meal types (a
+                    # kindergarten typically has breakfast, lunch and snack
+                    # all under one login), so the device must identify the
+                    # canteen, not any single meal. Per-meal-type entities
+                    # instead carry their meal type in their own name -- see
+                    # ``_attr_translation_placeholders`` in sensor.py and
+                    # calendar.py.
                     host = urlparse(result.base_url).hostname or result.base_url
-                    if result.canteen.meal_types:
-                        title = f"{result.canteen.meal_types[0].name} – {host}"  # noqa: RUF001
-                    else:
-                        title = host
+                    title = host
 
                     data: dict[str, Any] = {CONF_BASE_URL: result.base_url}
                     if username:
