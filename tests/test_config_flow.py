@@ -91,7 +91,12 @@ async def test_password_without_username_is_rejected(hass: HomeAssistant):
     mock_validate.assert_not_called()
 
 
-async def test_title_falls_back_to_host_when_there_are_no_meal_types(hass: HomeAssistant):
+async def test_title_is_the_host_even_when_the_canteen_has_no_meal_types(hass: HomeAssistant):
+    """The title is derived purely from the URL, so a degenerate canteen with
+    zero meal types (an edge case distinct from the normal two-option
+    canteen in ``test_anonymous_setup_creates_an_entry``) must not change it
+    or make title construction blow up.
+    """
     empty_canteen = replace(_result().canteen, meal_types=())
     with patch(VALIDATE, return_value=_result(canteen=empty_canteen)):
         result = await _submit(hass, {CONF_BASE_URL: BASE})

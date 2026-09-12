@@ -8,12 +8,15 @@ reasoning as ``tests/test_sensor.py``.
 from __future__ import annotations
 
 import datetime
+from decimal import Decimal
 
 from aioresponses import aioresponses
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.ejidelnicek.calendar import _describe, _summarize
 from custom_components.ejidelnicek.const import CONF_BASE_URL, DOMAIN
+from custom_components.ejidelnicek.models import DayMenu, Dish, MenuOption
 from tests.fixture_loader import load
 
 # Neutral test host -- never a real school hostname.
@@ -82,3 +85,61 @@ async def test_events_are_returned_in_chronological_order(hass: HomeAssistant, f
     starts = [e["start"] for e in events[ENTITY]["events"]]
     assert starts == sorted(starts)
     assert len(starts) == 10
+
+
+# ``_summarize`` and ``_describe`` are pure helpers exercised directly below
+# with synthetic ``DayMenu`` data. ``is_blocked`` (``barva == "B"``) only
+# ever comes from the authoritative AJAX feed, and no real fixture on disk
+# happens to capture a blocked day, so the "Blocked: " prefix path has no
+# other way to get covered.
+
+
+def _option(
+    key: str, *, name: str = "Dish", allergens: tuple[str, ...] = (), primary: bool = False
+) -> MenuOption:
+    return MenuOption(
+        key=key,
+        label=key,
+        name=name,
+        allergens=allergens,
+        allergen_codes=(),
+        diet=None,
+        price=Decimal("37.00"),
+        ordered=0,
+        remaining=None,
+        db_id=int(key),
+        is_primary=primary,
+    )
+
+
+def _day(*, is_blocked: bool, options: tuple[MenuOption, ...], **overrides) -> DayMenu:
+    defaults = {
+        "date": datetime.date(2026, 9, 14),
+        "weekday_label": "pondělí",
+        "soups": (),
+        "dessert": None,
+        "drink": None,
+    }
+    return DayMenu(**{**defaults, **overrides}, options=options, is_blocked=is_blocked)
+
+
+def test_summarize_prefixes_blocked_days():
+    day = _day(is_blocked=True, options=(_option("1", name="Kuřecí řízek", primary=True),))
+    assert _summarize(day) == "Blocked: Kuřecí řízek"
+
+
+def test_summarize_is_unprefixed_when_not_blocked():
+    day = _day(is_blocked=False, options=(_option("1", name="Kuřecí řízek", primary=True),))
+    assert _summarize(day) == "Kuřecí řízek"
+
+
+def test_describe_collects_dedupes_and_sorts_allergens_from_soups_and_options():
+    day = _day(
+        is_blocked=False,
+        dessert="Ovoce",
+        drink="Voda",
+        soups=(Dish(name="Polévka", allergens=("07 - Mléko",), allergen_codes=("7",)),),
+        options=(_option("1", name="Kuřecí řízek", allergens=("01 - Obilniny", "07 - Mléko")),),
+    )
+    description = _describe(day)
+    assert description == ("Polévka\n1: Kuřecí řízek\nOvoce\nVoda\n01 - Obilniny, 07 - Mléko")
