@@ -1,17 +1,13 @@
 """Tests for config entry setup/unload and coordinator error mapping.
 
-``calendar.py`` does not exist yet (Task 12). Config entry setup is limited
-to the platforms that genuinely exist on disk by the shared
-``_only_forward_to_existing_platforms`` autouse fixture in
-``tests/conftest.py`` -- see its docstring for why, and what Task 12 needs to
-do to it.
-
-``sensor.py`` (Task 10) and ``binary_sensor.py`` (Task 11) are real and
-genuinely exercised here:
-``test_setup_and_unload`` forwards to the real platform and exercises real
-sensor entity setup/teardown as a side effect of config entry setup/unload.
+``sensor.py`` (Task 10), ``binary_sensor.py`` (Task 11) and ``calendar.py``
+(Task 12) are all real and forwarded to for real by
+``hass.config_entries.async_setup``/``async_unload`` (``const.PLATFORMS``):
+``test_setup_and_unload`` forwards to the real platforms and exercises real
+entity setup/teardown as a side effect of config entry setup/unload.
 Dedicated, detailed sensor behaviour (state values, attributes, midnight
-rollover) lives in ``tests/test_sensor.py``.
+rollover) lives in ``tests/test_sensor.py``; calendar behaviour lives in
+``tests/test_calendar.py``.
 
 The config flow itself (Task 9) is real here: ``config_flow.py`` exists and
 is registered normally, so the reauth-flow assertion below exercises the
