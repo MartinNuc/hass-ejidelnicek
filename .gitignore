@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Secrets and personal data -- NEVER commit these.
+# Live credentials belong in Home Assistant's config entry store, not the repo.
+.env
+.env.*
+secrets.yaml
+*.secret
+credentials*
+# Scratch captures of authenticated pages contain a diner's name, account
+# number and balance. Keep any such capture out of git.
+scratch/
+*.authenticated.html
+*.authenticated.json
+auth_*.html
+auth_*.json
