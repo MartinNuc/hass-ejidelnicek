@@ -1,19 +1,19 @@
 """Tests for config entry setup/unload and coordinator error mapping.
 
-One piece of this integration does not exist yet and is explicitly out of
-scope for Task 8:
+Two platforms do not exist yet: ``binary_sensor.py`` and ``calendar.py``
+(Tasks 11-12). ``const.PLATFORMS`` already lists all three -- that constant
+stays production-accurate -- but forwarding to a platform module that is not
+on disk raises ``ModuleNotFoundError``, so the tests below patch
+``custom_components.ejidelnicek.PLATFORMS`` down to the platforms that
+genuinely exist yet. Task 11 adds ``Platform.BINARY_SENSOR`` to
+``_EXISTING_PLATFORMS``, Task 12 adds ``Platform.CALENDAR``, and once the
+list matches ``const.PLATFORMS`` the patch is deleted entirely.
 
-* ``binary_sensor.py``/``calendar.py``/``sensor.py`` (Tasks 10-12) -- but
-  ``const.PLATFORMS`` already lists all three, and ``async_setup_entry``
-  correctly forwards to them.
-
-It is stood in for using ``pytest_homeassistant_custom_component``'s own
-``mock_platform`` test helper -- the sanctioned way to tell Home Assistant's
-loader "this platform exists but is out of scope for this test" without
-touching the real, already reviewed ``__init__``/``api``/``coordinator``
-modules, which load and run for real, or the real ``manifest.json``/
-``const.PLATFORMS``, which stay production-accurate. Tasks 10-12 replace this
-stand-in with the genuine modules.
+``sensor.py`` (Task 10) is real and genuinely exercised here:
+``test_setup_and_unload`` forwards to the real platform and exercises real
+sensor entity setup/teardown as a side effect of config entry setup/unload.
+Dedicated, detailed sensor behaviour (state values, attributes, midnight
+rollover) lives in ``tests/test_sensor.py``.
 
 The config flow itself (Task 9) is real here: ``config_flow.py`` exists and
 is registered normally, so the reauth-flow assertion below exercises the
@@ -24,25 +24,16 @@ from __future__ import annotations
 
 import re
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from aioresponses import aioresponses
-from homeassistant import loader
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-    MockPlatform,
-    mock_platform,
-)
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.ejidelnicek.const import (
-    CONF_BASE_URL,
-    CONF_UPDATE_INTERVAL_HOURS,
-    DOMAIN,
-    PLATFORMS,
-)
+from custom_components.ejidelnicek.const import CONF_BASE_URL, CONF_UPDATE_INTERVAL_HOURS, DOMAIN
 from tests.fixture_loader import load
 
 # Neutral test host -- never a real school hostname.
@@ -50,19 +41,16 @@ BASE = "https://school.example.cz/ejidelnicek/"
 MENU = BASE + "menu/"
 AJAX_RE = re.compile(r".*get-jidelnicek.*")
 
+# See the module docstring: widen this as Tasks 11-12 add the remaining
+# platforms, then delete the patch once it matches const.PLATFORMS.
+_EXISTING_PLATFORMS = [Platform.SENSOR]
+
 
 @pytest.fixture(autouse=True)
-async def _stub_entity_platforms_from_later_tasks(hass: HomeAssistant):
-    """Stand in for the entity platforms Tasks 10-12 add.
-
-    Resolves the real integration first so ``mock_platform`` augments it in
-    place (adding each missing file to its known platform list and seeding
-    the loader's module cache) instead of replacing it with a fully mocked
-    integration, which would also shadow the real ``__init__.py``.
-    """
-    await loader.async_get_integration(hass, DOMAIN)
-    for platform in PLATFORMS:
-        mock_platform(hass, f"{DOMAIN}.{platform}", MockPlatform())
+def _only_forward_to_existing_platforms():
+    """Limit config entry setup to platforms that actually exist on disk."""
+    with patch("custom_components.ejidelnicek.PLATFORMS", _EXISTING_PLATFORMS):
+        yield
 
 
 async def test_setup_and_unload(hass: HomeAssistant) -> None:
