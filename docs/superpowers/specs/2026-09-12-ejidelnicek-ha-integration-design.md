@@ -87,11 +87,24 @@ Structure:
 | `…menuMap[k].dbId` | option id (needed for phase 2 ordering) |
 | `…menuMap[k].isFirst` | marks the primary option |
 
-**Allergen codes are concatenated single characters, not integers.** `alerg:
-"17"` means codes `1` and `7`, not `17` — confirmed against the site's own
-`alergZobr` rendering (`"(obsahuje alergeny:1,7)"`). Since `alergenyMap` has
-keys up to `28`, a naive integer parse silently yields wrong allergens. This is
-a correctness trap and must be covered by a test.
+**Allergen codes are concatenated base-36 characters, not integers.** Each
+character is one code: `'1'`-`'9'` are codes 1-9, `'A'`-`'S'` are codes 10-28.
+So `alerg: "17"` means codes `1` and `7`, not `17` — while `alerg: "1F"` means
+codes `1` and `15`. Confirmed against the site's own `alergZobr` rendering:
+`"17"` → `(obsahuje alergeny:1,7)`, `"1379AC"` → `1,3,7,9,10,12`, and `"1F"` →
+`1,1a` where `alergenyMap["15"]` is `"1a - Obilniny obsahující lepek - pšenice."`.
+
+Two traps live here and both are allergy-safety relevant. A naive `int()` of the
+whole string yields the wrong allergen — but so does a plain digit-wise split,
+which silently drops every letter-coded allergen: mustard (10), sesame (11),
+sulfites (12), lupin (13), molluscs (14) and all the gluten and nut sub-codes
+(15-28). Decode with `int(ch, 36)` and expose the decoded numeric code, so
+`allergen_codes` matches both the legend keys and what the site shows a parent.
+A code decoding to a value absent from the legend is kept without a name — real
+payloads contain `"17T"`, which the site itself renders with a trailing empty
+entry. This must be covered by a test against real payload data, not only a
+synthetic legend: a synthetic-only test is what allowed the digit-wise bug
+through during implementation.
 
 Extraction requires a **balanced-brace scan** that respects string literals and
 escapes. A regex to the final `}` is wrong, because dish names contain braces
