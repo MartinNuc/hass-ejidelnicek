@@ -15,9 +15,10 @@ from __future__ import annotations
 import datetime
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 
-from .models import Canteen, DayMenu, Dish, MealType, MenuOption
+from .models import Canteen, DayMenu, Diner, Dish, MealType, MenuOption
 
 CALL = "setJidelnicek("
 
@@ -226,4 +227,86 @@ def parse_canteen(payload: dict, *, authoritative: bool = False) -> Canteen:
         allergens=allergen_legend,
         diets=diet_legend,
         meal_types=tuple(meal_types),
+    )
+
+
+def parse_diner(stravnik: dict) -> Diner:
+    """Map a ``stravnik`` object into a frozen Diner.
+
+    Deliberately ignores identifying fields (``jmeno``, ``cislo``, ``vs``,
+    ``loginEmail``) present on the real upstream object: Diner has no fields
+    for them, which is what stops them leaking into entity attributes,
+    diagnostics or logs. Missing keys yield None rather than raising.
+    """
+    return Diner(
+        balance=parse_decimal_cz(stravnik.get("konto")),
+        balance_meals=parse_decimal_cz(stravnik.get("kontoStravne")),
+        balance_tuition=parse_decimal_cz(stravnik.get("kontoSkolne")),
+        in_debt=stravnik.get("dluh"),
+        ordering_disabled=stravnik.get("bezObjednavani"),
+    )
+
+
+def parse_ajax(body: str) -> tuple[Canteen, Diner | None]:
+    """Parse the JSON body of an authenticated AJAX response.
+
+    The body has the shape ``{"jidelnicek": {...}, "stravnik": {...}}``. The
+    canteen is parsed with ``authoritative=True`` since this response carries
+    real order, price and remaining-count data. ``diner`` is None when
+    ``stravnik`` is missing or not a dict.
+
+    Raises PayloadNotFound if the body is not valid JSON or has no usable
+    ``jidelnicek`` object.
+    """
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError as err:
+        raise PayloadNotFound(f"body is not valid JSON: {err}") from err
+
+    jidelnicek = payload.get("jidelnicek") if isinstance(payload, dict) else None
+    if not isinstance(jidelnicek, dict):
+        raise PayloadNotFound("no usable jidelnicek object found")
+
+    canteen = parse_canteen(jidelnicek, authoritative=True)
+
+    stravnik = payload.get("stravnik")
+    diner = parse_diner(stravnik) if isinstance(stravnik, dict) else None
+
+    return canteen, diner
+
+
+def merge_day(base: DayMenu, authoritative: DayMenu) -> DayMenu:
+    """Overlay authoritative per-option order data onto a public base day.
+
+    Iterates the base day's options and, for each option whose key also
+    appears in the authoritative day, overlays ``ordered``, ``price`` and
+    ``remaining``. Everything else -- dish names, soups, dessert, drink,
+    allergens -- comes from the base (public) day, which is the only source
+    with full menu text. ``is_blocked`` is taken from the authoritative day.
+
+    Base options whose key is absent from the authoritative day are kept,
+    not dropped: real upstream data has shown the authoritative response
+    can be terser than the public page for the same date.
+    """
+    authoritative_options = {option.key: option for option in authoritative.options}
+
+    merged_options = []
+    for option in base.options:
+        auth_option = authoritative_options.get(option.key)
+        if auth_option is None:
+            merged_options.append(option)
+        else:
+            merged_options.append(
+                replace(
+                    option,
+                    ordered=auth_option.ordered,
+                    price=auth_option.price,
+                    remaining=auth_option.remaining,
+                )
+            )
+
+    return replace(
+        base,
+        options=tuple(merged_options),
+        is_blocked=authoritative.is_blocked,
     )
