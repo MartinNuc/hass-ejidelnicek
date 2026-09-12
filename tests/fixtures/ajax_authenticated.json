@@ -1,0 +1,102 @@
+{
+    "jidelnicek": {
+        "dietyMap": {
+            "1": "Jídlo je možné podat v bezlepkové úpravě",
+            "2": "Bezmasé jídlo",
+            "3": "Doporučované jídlo"
+        },
+        "alergenyMap": {
+            "1": "01 - Obilniny obsahující lepek",
+            "7": "07 - Mléko a výrobky z něj."
+        },
+        "stravaMap": {
+            "0": {
+                "nazev": "Oběd",
+                "id": 1,
+                "volneMenu": 10,
+                "posunDne": 2,
+                "denMap": {
+                    "2026-09-14": {
+                        "datumden": "pondělí 14.9.2026",
+                        "polevka": [
+                            {
+                                "colorAlerg": "",
+                                "polevkaBL": "",
+                                "polevkaBM": "",
+                                "polevka": "Dýňový krém se semínky",
+                                "alerg": "17",
+                                "alergZobr": "(obsahuje alergeny:1,7)"
+                            }
+                        ],
+                        "zakusek": "Salát bar / ovoce",
+                        "napoj": "Voda, čaj s ginkem bilobou, mléko",
+                        "barva": "A",
+                        "jeTedBurza": false,
+                        "burzaPovolena": false,
+                        "vydejnaId": null,
+                        "vydejna": null,
+                        "fotoPocCol": 2,
+                        "menuMap": {
+                            "1": {
+                                "barva": 0,
+                                "burza": 0,
+                                "cena": "37.00",
+                                "dbId": 1,
+                                "objednavka": 1,
+                                "zbyva": -1,
+                                "nazev": "Květák s vejci, brambory s pažitkou",
+                                "nazevBL": "",
+                                "nazevBM": "",
+                                "detail": "",
+                                "detZobr": "",
+                                "colorAlerg": "",
+                                "alerg": "17",
+                                "alergZobr": "(obsahuje alergeny:1,7)",
+                                "fotoId": 0,
+                                "dieta": "",
+                                "isFirst": true,
+                                "dMenu": "1"
+                            },
+                            "2": {
+                                "barva": 0,
+                                "burza": 0,
+                                "cena": "37.00",
+                                "dbId": 2,
+                                "objednavka": 0,
+                                "zbyva": -1,
+                                "nazev": "Kuřecí nudličky s kořením gyros, vařený brambor",
+                                "nazevBL": "",
+                                "nazevBM": "",
+                                "detail": "",
+                                "detZobr": "",
+                                "colorAlerg": "",
+                                "alerg": "1",
+                                "alergZobr": "(obsahuje alergeny:1)",
+                                "fotoId": 0,
+                                "dieta": "",
+                                "isFirst": false,
+                                "dMenu": "2"
+                            }
+                        },
+                        "zakusekAlerg": "",
+                        "zakusekAlergZobr": "",
+                        "napojAlerg": "7",
+                        "napojAlergZobr": "(obsahuje alergeny:7)"
+                    }
+                }
+            }
+        },
+        "denSet": {
+            "2026-09-14": "14.09.2026 pondělí"
+        }
+    },
+    "stravnik": {
+        "konto": "297,00",
+        "kontoStravne": "0,00",
+        "kontoSkolne": "0,00",
+        "dluh": false,
+        "dluhStravne": false,
+        "dluhSkolne": false,
+        "bezObjednavani": false
+    }
+}
