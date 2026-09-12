@@ -1513,7 +1513,10 @@ author's school.**
 .venv/bin/python -m ruff check custom_components tests
 .venv/bin/python -m ruff format --check custom_components tests
 git grep -n "menu-update" -- custom_components || echo "no write endpoint referenced"
-git grep -niE "nucxavie|8800|jmeno|letohrad" -- custom_components README.md || echo "no credentials or personal hosts committed"
+# Secret scan. Read the live values from the environment so no credential
+# literal is ever written into this repository.
+git grep -niE "${EJ_SECRET_PATTERN:-jmeno|loginEmail}" -- custom_components README.md \
+  || echo "no credentials or personal hosts committed"
 ```
 
 Expected: tests pass, ruff clean, both greps report the "no …" message.
