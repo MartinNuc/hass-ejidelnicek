@@ -90,6 +90,27 @@ async def test_next_serving_day_points_past_the_weekend(hass: HomeAssistant, fre
     assert state.attributes["days_ahead"] == 2
 
 
+async def test_next_serving_day_does_not_duplicate_today_on_a_serving_day(
+    hass: HomeAssistant, freezer
+):
+    """On a serving day the two day sensors must be complementary, not identical.
+
+    ``MealType.next_serving_day`` is strictly forward (see ``models.py``): on
+    Monday 2026-09-14 -- itself a published day -- "next serving day" is
+    Tuesday 2026-09-15, one day ahead, not Monday again. An on-or-after
+    ``next_serving_day`` would make this sensor a copy of ``today`` on five
+    days out of seven and report ``days_ahead: 0``.
+    """
+    freezer.move_to(MONDAY)
+    await _setup(hass)
+    today = hass.states.get(TODAY_ID)
+    nxt = hass.states.get(NEXT_SERVING_DAY_ID)
+    assert today.attributes["date"] == "2026-09-14"
+    assert nxt.attributes["date"] == "2026-09-15"
+    assert nxt.attributes["days_ahead"] == 1
+    assert nxt.state != today.state
+
+
 async def test_public_view_reports_no_ordered_option(hass: HomeAssistant, freezer):
     """An anonymous entry never sees an ordered option."""
     freezer.move_to(MONDAY)

@@ -93,13 +93,21 @@ class MealType:
         """Return the menu for the given date, or None if it is not known."""
         return self.days.get(value)
 
-    def next_serving_day(self, on_or_after: datetime.date) -> DayMenu | None:
-        """Return the earliest known day whose date is on or after the given date.
+    def next_serving_day(self, after: datetime.date) -> DayMenu | None:
+        """Return the earliest known day whose date is strictly after the given date.
 
-        Returns None if no known day qualifies.
+        Strictly after, not on-or-after: ``day_for`` already answers "what is
+        on the plate today", so a "next serving day" that could also return
+        today would duplicate it on every serving day -- five days out of
+        seven -- and make an automation asking "what is tomorrow's lunch?" on
+        a Monday evening report Monday's already-eaten lunch. Being strictly
+        forward makes the two complementary: today, and the next day after it.
+
+        Returns None if no known day qualifies (asked on or after the last
+        published day, the menu has simply run out).
         """
         for value in self.sorted_dates:
-            if value >= on_or_after:
+            if value > after:
                 return self.days[value]
         return None
 

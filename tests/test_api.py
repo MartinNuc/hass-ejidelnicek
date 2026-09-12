@@ -11,9 +11,11 @@ from custom_components.ejidelnicek.api import (
     EjidelnicekClient,
     InvalidAuth,
     UnsupportedSite,
+    _dates_to_fetch,
     async_validate,
     candidate_base_urls,
 )
+from custom_components.ejidelnicek.parser import extract_payload, parse_canteen
 from tests.fixture_loader import load
 
 # Neutral test host -- never a real school hostname.
@@ -96,6 +98,10 @@ async def test_failed_login_raises_invalid_auth():
 
 
 async def test_authenticated_snapshot_merges_order_data_over_the_public_menu():
+    # ``today`` is passed explicitly: the set of days worth fetching is
+    # derived from it, so letting it default to the real current date would
+    # make this test's behaviour drift with the wall clock and break outright
+    # once the fixture's published window (2026-09-14 .. 09-25) is in the past.
     async with ClientSession() as session:
         with aioresponses() as mocked:
             mocked.get(BASE, status=200, body="<form id='loginForm'></form>")
@@ -109,7 +115,7 @@ async def test_authenticated_snapshot_merges_order_data_over_the_public_menu():
                 repeat=True,
             )
             client = EjidelnicekClient(session, BASE, "u", "p")
-            snapshot = await client.async_fetch_snapshot()
+            snapshot = await client.async_fetch_snapshot(today=datetime.date(2026, 9, 13))
     assert snapshot.diner.balance == Decimal("297.00")
     meal = snapshot.canteen.meal_types[0]
     # The ordered day merged the authoritative order data in.
@@ -184,3 +190,33 @@ async def test_validate_reraises_the_last_error_when_no_candidate_works():
             mocked.get("http://y.example.cz/ejidelnicek/menu/", status=500)
             with pytest.raises(CannotConnect):
                 await async_validate(session, "y.example.cz", None, None)
+
+
+def _two_options_canteen():
+    return parse_canteen(extract_payload(load("canteen_two_options.html")))
+
+
+def test_dates_to_fetch_covers_today_and_the_next_serving_day():
+    """The documented steady-state budget is three requests, so two AJAX days.
+
+    ``next_serving_day`` is strictly forward, so on a published day the set is
+    {today, the day after it} -- which is what restores the three-request
+    budget ``api.py``'s header documents (one ``menu/`` plus one AJAX call per
+    distinct date).
+    """
+    canteen = _two_options_canteen()
+    assert _dates_to_fetch(canteen, datetime.date(2026, 9, 14)) == (
+        datetime.date(2026, 9, 14),
+        datetime.date(2026, 9, 15),
+    )
+
+
+def test_dates_to_fetch_skips_an_unpublished_today():
+    """From a weekend, only the next published day is worth an AJAX call."""
+    canteen = _two_options_canteen()
+    assert _dates_to_fetch(canteen, datetime.date(2026, 9, 19)) == (datetime.date(2026, 9, 21),)
+
+
+def test_dates_to_fetch_is_empty_once_the_published_window_has_passed():
+    canteen = _two_options_canteen()
+    assert _dates_to_fetch(canteen, datetime.date(2026, 10, 1)) == ()

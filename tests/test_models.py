@@ -53,7 +53,14 @@ def test_ordered_option_finds_the_booked_option():
     assert day.ordered_option.key == "2"
 
 
-def test_next_serving_day_skips_a_weekend():
+def test_next_serving_day_is_strictly_after_the_given_date():
+    """Strictly after, so it never duplicates ``day_for(today)``.
+
+    ``day_for`` already answers "what is on the plate today". If
+    ``next_serving_day`` were on-or-after, it would return today on every
+    serving day -- five days out of seven -- and an automation asking on a
+    Monday evening what tomorrow's lunch is would get Monday's.
+    """
     friday, monday = datetime.date(2026, 9, 18), datetime.date(2026, 9, 21)
     meal = MealType(
         index="0",
@@ -64,8 +71,8 @@ def test_next_serving_day_skips_a_weekend():
     )
     # Asked on Saturday, the next serving day is Monday.
     assert meal.next_serving_day(datetime.date(2026, 9, 19)).date == monday
-    # Asked on Friday itself, Friday still counts.
-    assert meal.next_serving_day(friday).date == friday
+    # Asked on Friday itself, Friday does NOT count -- Monday is next.
+    assert meal.next_serving_day(friday).date == monday
 
 
 def test_next_serving_day_is_none_when_the_menu_has_run_out():
@@ -74,6 +81,8 @@ def test_next_serving_day_is_none_when_the_menu_has_run_out():
         index="0", strava_id=1, name="Oběd", order_day_offset=2, days={friday: _day(friday)}
     )
     assert meal.next_serving_day(datetime.date(2026, 9, 19)) is None
+    # Asked *on* the last published day, there is no day after it either.
+    assert meal.next_serving_day(friday) is None
 
 
 def test_slug_is_ascii_and_snake_case():

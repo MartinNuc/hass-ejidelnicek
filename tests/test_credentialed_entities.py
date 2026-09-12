@@ -2,8 +2,14 @@
 
 All time control uses the ``freezer`` fixture (freezegun, via
 ``pytest_freezer``), never ``patch("homeassistant.util.dt.now")`` -- same
-reasoning as ``tests/test_sensor.py``. Frozen to 2026-09-14, the one day the
-``ajax_authenticated.json`` fixture covers.
+reasoning as ``tests/test_sensor.py``.
+
+Frozen to Sunday 2026-09-13 rather than to a school day: ``ordered`` reports
+the *next* serving day, and ``MealType.next_serving_day`` is strictly forward
+(see ``models.py``), so from Sunday it lands on Monday 2026-09-14 -- the one
+day the ``ajax_authenticated.json`` fixture covers. Frozen to Monday itself,
+the sensor would (correctly) look at Tuesday, for which the fixture carries no
+order data at all, and the test would be asserting nothing about ordering.
 """
 
 from __future__ import annotations
@@ -25,8 +31,9 @@ BASE = "https://school.example.cz/ejidelnicek/"
 MENU = BASE + "menu/"
 AJAX_RE = re.compile(r".*get-jidelnicek.*")
 
-# The authenticated fixture covers exactly this one day.
-MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
+# The authenticated fixture covers exactly one day, Monday 2026-09-14; this
+# is the day before it, so that day is the "next serving day".
+SUNDAY = datetime.datetime(2026, 9, 13, 12, 0, tzinfo=datetime.UTC)
 
 BALANCE_ID = "sensor.school_example_cz_balance"
 DEBT_ID = "binary_sensor.school_example_cz_debt"
@@ -76,21 +83,21 @@ async def _setup(hass: HomeAssistant, *, ajax_body: str | None = None) -> MockCo
 
 async def test_balance_sensor_reports_the_diners_balance(hass: HomeAssistant, freezer):
     """konto "297,00" (Czech comma) must parse to the Decimal 297.00."""
-    freezer.move_to(MONDAY)
+    freezer.move_to(SUNDAY)
     await _setup(hass)
     assert hass.states.get(BALANCE_ID).state == "297.00"
 
 
 async def test_debt_binary_sensor_is_off_when_not_in_debt(hass: HomeAssistant, freezer):
     """dluh is false in the fixture."""
-    freezer.move_to(MONDAY)
+    freezer.move_to(SUNDAY)
     await _setup(hass)
     assert hass.states.get(DEBT_ID).state == "off"
 
 
 async def test_ordered_sensor_reports_the_booked_options_label(hass: HomeAssistant, freezer):
     """Option "1" is ordered (objednavka: 1) -- its label is the state."""
-    freezer.move_to(MONDAY)
+    freezer.move_to(SUNDAY)
     await _setup(hass)
     state = hass.states.get(ORDERED_ID)
     assert state.state == "1"
@@ -100,7 +107,7 @@ async def test_ordered_sensor_reports_the_booked_options_label(hass: HomeAssista
 
 async def test_ordered_sensor_reports_none_when_nothing_is_ordered(hass: HomeAssistant, freezer):
     """No option ordered -> the literal string "none", not unknown/None."""
-    freezer.move_to(MONDAY)
+    freezer.move_to(SUNDAY)
     await _setup(hass, ajax_body=_ajax_body_with_nothing_ordered())
     state = hass.states.get(ORDERED_ID)
     assert state.state == "none"
@@ -109,7 +116,7 @@ async def test_ordered_sensor_reports_none_when_nothing_is_ordered(hass: HomeAss
 
 async def test_authenticated_option_reports_a_real_price(hass: HomeAssistant, freezer):
     """Contrast with the anonymous case: a credentialed entry sees a real price."""
-    freezer.move_to(MONDAY)
+    freezer.move_to(SUNDAY)
     await _setup(hass)
     state = hass.states.get(ORDERED_ID)
     ordered_option = next(o for o in state.attributes["options"] if o["label"] == "1")
@@ -121,7 +128,7 @@ async def test_credentialed_entry_with_no_diner_data_does_not_raise(hass: HomeAs
     """A credentialed entry whose diner is None (no ``stravnik`` object) must
     degrade to unknown, not raise.
     """
-    freezer.move_to(MONDAY)
+    freezer.move_to(SUNDAY)
     payload = json.loads(load("ajax_authenticated.json"))
     del payload["stravnik"]
     await _setup(hass, ajax_body=json.dumps(payload))

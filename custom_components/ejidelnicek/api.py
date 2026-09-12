@@ -10,8 +10,9 @@ Request budget (see ``EjidelnicekClient.async_fetch_snapshot``):
   * No credentials: exactly one request (``GET menu/``).
   * With credentials, steady state (session already valid): three requests
     -- one ``GET menu/`` plus one ``GET ajax/get-jidelnicek`` per distinct
-    date needed (today and each meal type's next serving day, deduplicated
-    and restricted to dates the canteen actually publishes). Session login
+    date needed (today and each meal type's next serving day -- strictly
+    after today, see ``MealType.next_serving_day`` -- deduplicated and
+    restricted to dates the canteen actually publishes). Session login
     and recovery are paid for lazily, only when a request actually reveals
     the session is missing or has expired, so they are not part of this
     steady-state count.

@@ -265,7 +265,18 @@ into attributes, diagnostics or logs (§10).
 
 ## 6. Transport and authentication (`api.py`)
 
-All requests go through Home Assistant's shared `aiohttp` session.
+Each config entry gets its **own** `aiohttp` session, created with
+`async_create_clientsession(hass, cookie_jar=aiohttp.CookieJar(unsafe=True))`,
+and the config flow validates on a throwaway session of the same shape. Never
+`async_get_clientsession`: the session cookie (`JSESSIONID`) lives in the
+session's cookie jar, and HA's shared session has one instance-wide
+`CookieJar(unsafe=False)`. Sharing it would (a) silently drop the cookie for a
+LAN-IP deployment (`update_cookies` refuses cookies from IP hosts unless the
+jar is `unsafe`), making a credentialed entry there impossible to
+authenticate, and (b) let two diners at one school overwrite each other's
+session, so one entry would report its sibling's orders and balance as its own
+— and would let config-flow validation accept a *wrong* password whenever a
+sibling session happened to be live.
 
 **URL normalisation.** Accept a bare host, `…/ejidelnicek/`, or
 `…/ejidelnicek/menu/`. Add a scheme when missing, trying `https` first and
@@ -339,6 +350,11 @@ Only with credentials:
 | `sensor.<slug>_<meal>_ordered_next_serving_day` | option label, else `none` | authoritative (§3.4) |
 | `sensor.<slug>_balance` | `Decimal` | `device_class: monetary`, CZK, entry-level |
 | `binary_sensor.<slug>_debt` | `dluh` | `device_class: problem` |
+
+`_next_serving_day` is **strictly forward**: it is the earliest published day
+*after* today, never today itself. `_today` already covers today, so making
+the two complementary is what keeps `_next_serving_day` from duplicating it on
+every serving day (five days out of seven, with `days_ahead: 0`).
 
 There is no `_tomorrow` sensor. On a Friday, "tomorrow" is a Saturday with no
 menu, which makes the entity useless exactly when it matters;

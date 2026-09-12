@@ -2,9 +2,11 @@
 
 Two families of sensor live here:
 
-* ``EjidelnicekDaySensor`` (Task 10) -- "today" and "next serving day", for
-  every entry, credentialed or not.
-* ``EjidelnicekOrderedSensor`` and ``EjidelnicekBalanceSensor`` (Task 11) --
+* ``EjidelnicekDaySensor`` -- "today" and "next serving day", for every entry,
+  credentialed or not. The two are complementary, never duplicates:
+  ``MealType.next_serving_day`` is strictly forward, so on a serving day
+  "today" reports today and "next serving day" reports the day after it.
+* ``EjidelnicekOrderedSensor`` and ``EjidelnicekBalanceSensor`` --
   credential-only, gated on ``coordinator.client.has_credentials``. An
   anonymous entry never has real order or account data to report, so these
   are never created for one.
@@ -157,6 +159,16 @@ class EjidelnicekDaySensor(EjidelnicekEntity, SensorEntity):
 
 class EjidelnicekOrderedSensor(EjidelnicekEntity, SensorEntity):
     """Reports what has been ordered for one meal type's next serving day.
+
+    "Next serving day" is strictly forward (``MealType.next_serving_day``),
+    which is the point: an order for a day that has already been eaten is not
+    actionable, whereas one for a genuinely future day still can be changed.
+
+    The day reported here is the same day the authoritative AJAX call fetched:
+    both are ``next_serving_day(dt_util.now().date())`` -- see
+    ``api._dates_to_fetch``, which fetches exactly today plus each meal type's
+    next serving day -- so this sensor never reports "nothing ordered" merely
+    because its day was never fetched.
 
     Credential-only: only a logged-in session sees real order data (see
     ``EjidelnicekClient.async_fetch_snapshot``), so this is only created when
