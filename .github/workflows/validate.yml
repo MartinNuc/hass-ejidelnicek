@@ -28,8 +28,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      # No continue-on-error: the spec's privacy section promises that a
+      # future accidental credential commit fails the build, and this
+      # repository has already committed a credential once. A scan that
+      # cannot fail is not a scan.
       - name: Scan for secrets
-        continue-on-error: true
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

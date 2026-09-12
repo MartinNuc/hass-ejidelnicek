@@ -457,7 +457,17 @@ Test-driven, parser first, and **entirely offline**.
 - **Config flow tests**: success anonymous, success authenticated, each error key, `unique_id` collision, two-children case, reauth.
 - **Entity tests** via `pytest-homeassistant-custom-component`: next-serving-day selection across a weekend, midnight rollover, all-day calendar event boundaries and ordering, unknown states on non-serving days, absence of credential-only entities when anonymous.
 
-CI (GitHub Actions): `hassfest`, HACS validation, `ruff`, `mypy`, `pytest`, secret scan.
+CI (GitHub Actions): `hassfest`, HACS validation, `ruff`, `pytest`, secret scan.
+The secret scan is a blocking job (no `continue-on-error`), so an accidental
+credential commit fails the build rather than merely annotating it.
+
+No `mypy`: an earlier draft of this spec listed it, but neither workflow ever
+ran it and it was never in the `dev` dependency group. The code is thoroughly
+annotated and `ruff` enforces the style, so rather than adding an unverified
+type-checking gate to CI, the claim is struck. Adding it later is a small,
+self-contained change -- add `mypy` to `[dependency-groups] dev`, a step to
+`test.yml`, and a `[tool.mypy]` table -- and should be done only once it
+actually passes.
 
 ## 12. Repository layout
 
