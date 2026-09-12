@@ -131,9 +131,13 @@ def _parse_option(
 
     if authoritative:
         price = parse_decimal_cz(raw.get("cena"))
-        ordered = raw.get("objednavka", 0)
+        # ``or 0`` rather than a ``get`` default: upstream sends these keys as
+        # JSON ``null`` as well as omitting them, and a None here would escape
+        # into ``DayMenu.ordered_option``, where ``None > 0`` raises TypeError
+        # from inside a property -- i.e. an unreadable entity, not a bad value.
+        ordered = int(raw.get("objednavka") or 0)
         remaining = raw.get("zbyva")
-        remaining = None if remaining is None or remaining == -1 else remaining
+        remaining = None if remaining is None or int(remaining) == -1 else int(remaining)
     else:
         price = None
         ordered = 0

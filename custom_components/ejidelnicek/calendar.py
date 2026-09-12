@@ -28,6 +28,9 @@ if TYPE_CHECKING:
     from .coordinator import EjidelnicekConfigEntry, EjidelnicekCoordinator
     from .models import DayMenu
 
+# See ``_summarize``: intentionally not translated.
+_BLOCKED_PREFIX = "Blocked: "
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -64,9 +67,18 @@ def _describe(day: DayMenu) -> str:
 
 
 def _summarize(day: DayMenu) -> str:
-    """Return the event summary: the primary dish, flagged when blocked."""
+    """Return the event summary: the primary dish, flagged when blocked.
+
+    The "Blocked: " prefix is deliberately untranslated English. A calendar
+    event's summary is plain data written into the event, not entity state, so
+    Home Assistant's translation machinery never reaches it: translating it
+    would mean picking a language at fetch time and baking it into events that
+    persist, and the dish name it prefixes is Czech either way. The
+    machine-readable form of the same fact is the ``is_blocked`` attribute on
+    the day sensors, which is what an automation should branch on.
+    """
     name = day.primary.name if day.primary is not None else "?"
-    return f"Blocked: {name}" if day.is_blocked else name
+    return f"{_BLOCKED_PREFIX}{name}" if day.is_blocked else name
 
 
 def _event_for(day: DayMenu) -> CalendarEvent:

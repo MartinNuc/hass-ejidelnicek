@@ -221,3 +221,24 @@ def test_dates_to_fetch_skips_an_unpublished_today():
 def test_dates_to_fetch_is_empty_once_the_published_window_has_passed():
     canteen = _two_options_canteen()
     assert _dates_to_fetch(canteen, datetime.date(2026, 10, 1)) == ()
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["HTTPS://X.CZ/EJIDELNICEK/", "https://x.cz/EJidelnicek", "https://x.cz/EJIDELNICEK/MENU/"],
+)
+def test_the_ejidelnicek_path_segment_is_matched_case_insensitively(raw):
+    """A URL pasted out of a browser bar must not gain a second path segment."""
+    (candidate,) = candidate_base_urls(raw)
+    assert candidate.lower() == "https://x.cz/ejidelnicek/"
+
+
+def test_a_canteen_serving_only_a_main_course_is_not_reported_as_empty():
+    """Missing soup, dessert and drink alone is not the placeholder signal.
+
+    A canteen that genuinely serves nothing but a main course would otherwise
+    get the "publishes nothing publicly" Repairs issue. Only a canteen whose
+    every day is a *single* option with no other content qualifies.
+    """
+    assert menu_is_empty(parse_canteen(extract_payload(load("canteen_long_window.html")))) is False
+    assert menu_is_empty(parse_canteen(extract_payload(load("canteen_placeholder.html")))) is True

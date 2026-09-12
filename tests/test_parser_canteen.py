@@ -183,3 +183,29 @@ def test_invalid_iso_date_key_is_skipped_not_raised():
     payload = _minimal_payload(None, extra_days={"not-a-date": valid_day})
     meal = parse_canteen(payload).meal_types[0]
     assert meal.sorted_dates == (datetime.date(2026, 9, 14),)
+
+
+def test_a_null_objednavka_is_read_as_not_ordered_not_as_none():
+    """``objednavka: null`` must not reach ``DayMenu.ordered_option``.
+
+    A present-but-null key survived ``raw.get("objednavka", 0)`` as ``None``,
+    and ``ordered_option`` then evaluated ``None > 0`` -- a TypeError raised
+    from inside a property, which surfaces as an unreadable entity rather than
+    as a wrong value.
+    """
+    payload = _minimal_payload(None)
+    payload["stravaMap"]["0"]["denMap"]["2026-09-14"]["menuMap"]["1"]["objednavka"] = None
+    day = (
+        parse_canteen(payload, authoritative=True).meal_types[0].day_for(datetime.date(2026, 9, 14))
+    )
+    assert day.options[0].ordered == 0
+    assert day.ordered_option is None
+
+
+def test_a_null_zbyva_is_read_as_untracked():
+    payload = _minimal_payload(None)
+    payload["stravaMap"]["0"]["denMap"]["2026-09-14"]["menuMap"]["1"]["zbyva"] = None
+    day = (
+        parse_canteen(payload, authoritative=True).meal_types[0].day_for(datetime.date(2026, 9, 14))
+    )
+    assert day.options[0].remaining is None

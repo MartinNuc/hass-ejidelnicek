@@ -123,9 +123,11 @@ async def test_diagnostics_never_leak_the_diners_balance(hass: HomeAssistant, ha
     assert data["diner"]["balance"] == "**REDACTED**"
     assert data["diner"]["balance_meals"] == "**REDACTED**"
     assert data["diner"]["balance_tuition"] == "**REDACTED**"
-    # The real balance in ajax_authenticated.json is 297,00 CZK.
-    serialised = json.dumps(data, default=str)
-    assert "297" not in serialised
+    # The real balance in ajax_authenticated.json is 297,00 CZK. Scoped to the
+    # diner sub-dict on purpose: asserting over the whole document would also
+    # trip on an unrelated dbId or day count that happened to contain "297",
+    # which is a false failure, not a leak.
+    assert "297" not in json.dumps(data["diner"], default=str)
 
 
 async def test_diagnostics_never_include_diner_identity_fields(hass: HomeAssistant, hass_client):

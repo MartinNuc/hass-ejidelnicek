@@ -1,10 +1,13 @@
 import dataclasses
 import datetime
+import json
 from decimal import Decimal
+
+import pytest
 
 from custom_components.ejidelnicek.models import DayMenu, MenuOption
 from custom_components.ejidelnicek.parser import (
-    extract_payload,
+    PayloadNotFound,
     merge_day,
     parse_ajax,
     parse_canteen,
@@ -187,8 +190,6 @@ def test_parse_diner_missing_keys_yield_none():
 
 
 def test_parse_ajax_returns_none_diner_when_stravnik_missing():
-    import json
-
     payload = json.loads(load("ajax_authenticated.json"))
     del payload["stravnik"]
     canteen, diner = parse_ajax(json.dumps(payload))
@@ -197,8 +198,6 @@ def test_parse_ajax_returns_none_diner_when_stravnik_missing():
 
 
 def test_parse_ajax_returns_none_diner_when_stravnik_not_a_dict():
-    import json
-
     payload = json.loads(load("ajax_authenticated.json"))
     payload["stravnik"] = None
     _, diner = parse_ajax(json.dumps(payload))
@@ -206,35 +205,18 @@ def test_parse_ajax_returns_none_diner_when_stravnik_not_a_dict():
 
 
 def test_parse_ajax_raises_on_invalid_json():
-    from custom_components.ejidelnicek.parser import PayloadNotFound
-
-    try:
+    with pytest.raises(PayloadNotFound):
         parse_ajax("not json")
-        raise AssertionError("expected PayloadNotFound")
-    except PayloadNotFound:
-        pass
 
 
 def test_parse_ajax_raises_when_no_jidelnicek_key():
-    from custom_components.ejidelnicek.parser import PayloadNotFound
-
-    try:
+    with pytest.raises(PayloadNotFound):
         parse_ajax('{"stravnik": {}}')
-        raise AssertionError("expected PayloadNotFound")
-    except PayloadNotFound:
-        pass
 
 
 def test_parse_ajax_uses_authoritative_parsing_directly_matches_parse_canteen():
     # Sanity check that parse_ajax's canteen matches parse_canteen(..., authoritative=True)
-    import json
-
     payload = json.loads(load("ajax_authenticated.json"))
     expected = parse_canteen(payload["jidelnicek"], authoritative=True)
     canteen, _ = parse_ajax(load("ajax_authenticated.json"))
     assert canteen == expected
-
-
-def test_extract_payload_still_importable():
-    # Guard against accidental removal of existing exports while editing parser.py.
-    assert extract_payload is not None

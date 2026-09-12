@@ -135,7 +135,12 @@ async def test_public_view_never_shows_a_price_or_remaining_count(hass: HomeAssi
 
 
 async def test_credential_only_entities_are_absent_when_anonymous(hass: HomeAssistant, freezer):
-    """Task 11's balance sensor and debt binary sensor do not exist yet."""
+    """The balance sensor and debt binary sensor are credential-only.
+
+    They exist, and ``tests/test_credentialed_entities.py`` asserts their
+    values. The point here is the other half of that gate: an anonymous entry
+    has no account data to report, so neither entity is created for one.
+    """
     freezer.move_to(MONDAY)
     await _setup(hass)
     assert hass.states.get("sensor.school_example_cz_balance") is None

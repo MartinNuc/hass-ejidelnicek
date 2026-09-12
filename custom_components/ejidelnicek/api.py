@@ -109,12 +109,20 @@ def _contains_payload(text: str) -> bool:
 
 
 def _normalise(scheme: str, rest: str) -> str:
-    """Build one ``scheme://host[:port]/ejidelnicek/`` candidate from a raw host/path."""
+    """Build one ``scheme://host[:port]/ejidelnicek/`` candidate from a raw host/path.
+
+    The ``ejidelnicek`` path segment is matched case-insensitively: a user who
+    pastes ``HTTPS://X.CZ/EJIDELNICEK/`` out of a browser bar would otherwise
+    get ``.../EJIDELNICEK/ejidelnicek/`` appended and a confusing
+    ``cannot_connect``. The segment is kept with the casing the user typed,
+    since only the server knows whether its path is case-sensitive.
+    """
     rest = rest.strip().strip("/")
     host, _, path = rest.partition("/")
     segments = [segment for segment in path.split("/") if segment]
-    if "ejidelnicek" in segments:
-        segments = segments[: segments.index("ejidelnicek") + 1]
+    lowered = [segment.lower() for segment in segments]
+    if "ejidelnicek" in lowered:
+        segments = segments[: lowered.index("ejidelnicek") + 1]
     else:
         segments.append("ejidelnicek")
     return f"{scheme}://{host}/{'/'.join(segments)}/"
@@ -181,10 +189,17 @@ def _merge_canteen(base: Canteen, authoritative: Canteen) -> Canteen:
 
 
 def menu_is_empty(canteen: Canteen) -> bool:
-    """Return True if no day in any meal type has a soup, dessert or drink.
+    """Return True if the canteen appears to publish no real menu at all.
 
-    This is the signal for a canteen (typically a kindergarten) that
-    publishes nothing publicly and requires credentials to see anything.
+    This is the signal for a canteen (typically a kindergarten) that publishes
+    nothing publicly and requires credentials to see anything: every day is a
+    single placeholder option (upstream literally names it "Přihlásit" -- "Log
+    in") with no soup, dessert or drink.
+
+    Both halves matter. Soups/dessert/drink alone would misfire on a canteen
+    that genuinely serves nothing but a main course -- ``canteen_long_window``
+    already has days in exactly that shape -- and a day offering a *choice* of
+    options is self-evidently a real published menu whatever else is missing.
 
     Public because it is evaluated on every setup (``__init__.py``) against
     the *current* snapshot, not once during the config flow: a canteen that
@@ -192,7 +207,7 @@ def menu_is_empty(canteen: Canteen) -> bool:
     """
     for meal_type in canteen.meal_types:
         for day in meal_type.days.values():
-            if day.soups or day.dessert or day.drink:
+            if day.soups or day.dessert or day.drink or len(day.options) > 1:
                 return False
     return True
 
@@ -354,10 +369,14 @@ async def async_validate(
     URL scheme.
     """
     last_error: EjidelnicekError | None = None
+    # Home Assistant's configured timezone, not the process timezone: the same
+    # ``today`` the coordinator passes, so validation fetches the same days a
+    # real refresh would.
+    today = dt_util.now().date()
     for base_url in candidate_base_urls(raw_url):
         client = EjidelnicekClient(session, base_url, username, password)
         try:
-            snapshot = await client.async_fetch_snapshot()
+            snapshot = await client.async_fetch_snapshot(today=today)
         except (CannotConnect, UnsupportedSite) as err:
             last_error = err
             continue

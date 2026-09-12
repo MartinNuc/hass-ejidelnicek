@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -45,7 +46,7 @@ class EjidelnicekEntity(CoordinatorEntity[EjidelnicekCoordinator]):
         """Register a midnight callback so day-based state rolls over."""
         await super().async_added_to_hass()
 
-        async def _midnight(_now) -> None:
+        async def _midnight(_now: datetime) -> None:
             self.async_write_ha_state()
 
         self.async_on_remove(
