@@ -27,6 +27,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import aiohttp
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.util import dt as dt_util
 
 from .models import Canteen, Diner, Snapshot
@@ -34,6 +35,7 @@ from .parser import PayloadNotFound, extract_payload, merge_day, parse_ajax, par
 
 if TYPE_CHECKING:
     from aiohttp import ClientSession
+    from homeassistant.core import HomeAssistant
 
 _MENU_PATH = "menu/"
 _LOGIN_PATH = "logincheck"
@@ -62,6 +64,37 @@ class _SessionExpired(Exception):
     Never escapes this module -- it is always caught and translated into
     either a successful retry or ``InvalidAuth``.
     """
+
+
+def async_new_session(hass: HomeAssistant, *, auto_cleanup: bool = True) -> ClientSession:
+    """Create a session that is this client's alone, with its own cookie jar.
+
+    Never ``async_get_clientsession``: that session is shared by every
+    integration in the instance and, as of HA 2026.2, is created with no
+    ``cookie_jar`` argument, so all of them share one
+    ``aiohttp.CookieJar(unsafe=False)``. This client keeps its ``JSESSIONID``
+    in the session's jar, which makes that sharing actively wrong twice over:
+
+    * ``CookieJar.update_cookies`` returns early for an IP-address host when
+      the jar is not ``unsafe``, so the session cookie is silently dropped --
+      and several E-jídelníček deployments are reachable only by a LAN IP.
+      A credentialed entry there could never authenticate: it would log in,
+      lose the cookie, look session-expired, re-login, and finally raise
+      ``InvalidAuth`` into a reauth dialog no correct password could satisfy.
+    * Two diners at one school are two config entries against one host. On a
+      shared jar, whichever logged in last owns the ``JSESSIONID``; the other
+      entry sees a *valid* session for the wrong diner and silently reports
+      its sibling's orders, balance and debt as its own.
+
+    ``auto_cleanup`` is left on for a config entry (HA then detaches the
+    session when the entry unloads); callers outside an entry -- the config
+    flow -- pass ``False`` and ``detach()`` the session themselves.
+    """
+    return async_create_clientsession(
+        hass,
+        cookie_jar=aiohttp.CookieJar(unsafe=True),
+        auto_cleanup=auto_cleanup,
+    )
 
 
 def _contains_login_form(text: str) -> bool:

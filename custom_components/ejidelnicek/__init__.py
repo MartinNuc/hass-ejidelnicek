@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import EjidelnicekClient
+from .api import EjidelnicekClient, async_new_session
 from .const import CONF_BASE_URL, PLATFORMS
 from .coordinator import EjidelnicekCoordinator
 
@@ -19,8 +18,10 @@ if TYPE_CHECKING:
 
 async def async_setup_entry(hass: HomeAssistant, entry: EjidelnicekConfigEntry) -> bool:
     """Set up E-jídelníček from a config entry."""
+    # A session of this entry's own, never the instance-wide shared one --
+    # see ``async_new_session`` for why that distinction is load-bearing.
     client = EjidelnicekClient(
-        async_get_clientsession(hass),
+        async_new_session(hass),
         entry.data[CONF_BASE_URL],
         entry.data.get(CONF_USERNAME),
         entry.data.get(CONF_PASSWORD),

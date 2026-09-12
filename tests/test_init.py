@@ -19,11 +19,14 @@ from __future__ import annotations
 import re
 from datetime import timedelta
 
+import aiohttp
 from aioresponses import aioresponses
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from yarl import URL
 
 from custom_components.ejidelnicek.const import CONF_BASE_URL, CONF_UPDATE_INTERVAL_HOURS, DOMAIN
 from tests.fixture_loader import load
@@ -102,3 +105,71 @@ async def test_update_interval_is_clamped_to_the_minimum(hass: HomeAssistant) ->
         await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
     assert entry.runtime_data.update_interval == timedelta(hours=1)
+
+
+async def test_each_entry_gets_its_own_session_with_its_own_cookie_jar(
+    hass: HomeAssistant,
+) -> None:
+    """Two entries against one school must never share a cookie jar.
+
+    ``api.py`` keeps its ``JSESSIONID`` in the aiohttp session's cookie jar,
+    and Home Assistant's shared ``async_get_clientsession`` session has a
+    single instance-wide jar. Sharing it would mean whichever entry logged in
+    last owns the session cookie, so the other entry would see a *valid*
+    session for the wrong diner and silently report its sibling's orders,
+    balance and debt as its own -- exactly the "two children at one school"
+    setup ``config_flow.py`` advertises as supported.
+    """
+    entries = []
+    for user in ("child_one", "child_two"):
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={CONF_BASE_URL: BASE},
+            unique_id=f"{BASE}|{user}",
+        )
+        entry.add_to_hass(hass)
+        entries.append(entry)
+
+    with aioresponses() as mocked:
+        mocked.get(MENU, status=200, body=load("canteen_two_options.html"), repeat=True)
+        # Setting up the first entry sets up the component, which loads every
+        # other not-yet-loaded entry of this domain with it.
+        assert await hass.config_entries.async_setup(entries[0].entry_id)
+        await hass.async_block_till_done()
+    assert all(entry.state is ConfigEntryState.LOADED for entry in entries)
+
+    first, second = (entry.runtime_data.client._session for entry in entries)
+    shared = async_get_clientsession(hass)
+
+    assert first is not second
+    assert first is not shared
+    assert second is not shared
+    assert first.cookie_jar is not second.cookie_jar
+    assert first.cookie_jar is not shared.cookie_jar
+    # And each entry's jar is configured to keep cookies from IP-address
+    # hosts -- see ``test_the_cookie_jar_we_configure_keeps_an_ip_hosts_cookie``.
+    assert first.cookie_jar._unsafe is True
+    assert second.cookie_jar._unsafe is True
+
+
+async def test_the_cookie_jar_we_configure_keeps_an_ip_hosts_cookie() -> None:
+    """An IP-host deployment must still be able to hold a session cookie.
+
+    ``aiohttp.CookieJar.update_cookies`` returns early when the jar is not
+    ``unsafe`` and the response host is a bare IP address, silently dropping
+    the cookie. Several E-jídelníček deployments are reachable only by a LAN
+    IP, and a credentialed entry there would loop login -> cookie dropped ->
+    "session expired" -> re-login -> ``InvalidAuth``, opening a reauth dialog
+    that not even the correct password could satisfy. The second half of this
+    test pins down that the default jar really does behave that way, so this
+    is a regression test for the cause, not just for the fix.
+    """
+    url = URL("http://192.168.10.233/ejidelnicek/")
+
+    ours = aiohttp.CookieJar(unsafe=True)
+    ours.update_cookies({"JSESSIONID": "kept"}, url)
+    assert ours.filter_cookies(url)["JSESSIONID"].value == "kept"
+
+    default = aiohttp.CookieJar()
+    default.update_cookies({"JSESSIONID": "dropped"}, url)
+    assert "JSESSIONID" not in default.filter_cookies(url)

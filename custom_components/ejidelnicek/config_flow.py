@@ -24,16 +24,22 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
 )
 
-from .api import CannotConnect, InvalidAuth, UnsupportedSite, async_validate
+from .api import (
+    CannotConnect,
+    InvalidAuth,
+    UnsupportedSite,
+    ValidationResult,
+    async_new_session,
+    async_validate,
+)
 from .const import (
     CONF_BASE_URL,
     CONF_UPDATE_INTERVAL_HOURS,
@@ -53,6 +59,31 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 STEP_REAUTH_DATA_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): str})
+
+
+async def _async_validate_on_a_throwaway_session(
+    hass: HomeAssistant,
+    raw_url: str,
+    username: str | None,
+    password: str | None,
+) -> ValidationResult:
+    """Validate against a session created and discarded for this probe alone.
+
+    Deliberately not the shared Home Assistant session (and not any loaded
+    entry's session either), because ``api.py`` keeps its ``JSESSIONID`` in
+    the session's cookie jar. Sharing one here would break the flow in both
+    directions: a live sibling entry's session would make a *wrong* password
+    look valid (the ``logincheck`` POST is never needed when the AJAX call
+    already succeeds), and this probe's login would in turn steal that
+    sibling's session out from under it. See ``async_new_session``.
+    """
+    session = async_new_session(hass, auto_cleanup=False)
+    try:
+        return await async_validate(session, raw_url, username, password)
+    finally:
+        # The connector belongs to Home Assistant, so detach (which leaves it
+        # open for everyone else) rather than close.
+        session.detach()
 
 
 def _map_error(err: Exception) -> str:
@@ -94,8 +125,8 @@ class EjidelnicekConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "incomplete_credentials"
             else:
                 try:
-                    result = await async_validate(
-                        async_get_clientsession(self.hass),
+                    result = await _async_validate_on_a_throwaway_session(
+                        self.hass,
                         user_input[CONF_BASE_URL],
                         username,
                         password,
@@ -166,8 +197,8 @@ class EjidelnicekConfigFlow(ConfigFlow, domain=DOMAIN):
             username = reauth_entry.data.get(CONF_USERNAME)
             password = user_input[CONF_PASSWORD]
             try:
-                await async_validate(
-                    async_get_clientsession(self.hass),
+                await _async_validate_on_a_throwaway_session(
+                    self.hass,
                     reauth_entry.data[CONF_BASE_URL],
                     username,
                     password,
