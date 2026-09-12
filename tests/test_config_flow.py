@@ -10,7 +10,6 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
-from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ejidelnicek.api import (
@@ -35,12 +34,7 @@ VALIDATE = "custom_components.ejidelnicek.config_flow.async_validate"
 
 def _result(**kwargs):
     canteen = parse_canteen(extract_payload(load("canteen_two_options.html")))
-    defaults = {
-        "base_url": BASE,
-        "canteen": canteen,
-        "diner": None,
-        "menu_is_empty": False,
-    }
+    defaults = {"base_url": BASE, "canteen": canteen, "diner": None}
     return ValidationResult(**{**defaults, **kwargs})
 
 
@@ -140,31 +134,14 @@ async def test_two_children_at_the_same_school_are_both_allowed(hass: HomeAssist
     assert result["type"] is FlowResultType.CREATE_ENTRY
 
 
-async def test_empty_public_menu_still_creates_an_entry(hass: HomeAssistant):
-    with patch(VALIDATE, return_value=_result(menu_is_empty=True)):
+async def test_a_canteen_that_publishes_nothing_still_creates_an_entry(hass: HomeAssistant):
+    """The entry is created either way; the warning about it is raised during
+    setup, not here -- see ``tests/test_init.py`` for its whole lifecycle.
+    """
+    empty = parse_canteen(extract_payload(load("canteen_placeholder.html")))
+    with patch(VALIDATE, return_value=_result(canteen=empty)):
         result = await _submit(hass, {CONF_BASE_URL: BASE})
     assert result["type"] is FlowResultType.CREATE_ENTRY
-
-
-async def test_empty_public_menu_raises_a_repairs_issue(hass: HomeAssistant):
-    with patch(VALIDATE, return_value=_result(menu_is_empty=True)):
-        result = await _submit(hass, {CONF_BASE_URL: BASE})
-    unique_id = result["result"].unique_id
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"empty_public_menu_{unique_id}")
-    assert issue is not None
-    assert issue.is_fixable is False
-    assert issue.severity is ir.IssueSeverity.WARNING
-    assert issue.translation_key == "empty_public_menu"
-    assert issue.translation_placeholders == {"host": "school.example.cz"}
-
-
-async def test_credentialed_empty_public_menu_does_not_raise_an_issue(hass: HomeAssistant):
-    """Credentials were given, so an empty *public* menu is not surprising."""
-    with patch(VALIDATE, return_value=_result(menu_is_empty=True)):
-        result = await _submit(hass, {CONF_BASE_URL: BASE, CONF_USERNAME: "u", CONF_PASSWORD: "p"})
-    unique_id = result["result"].unique_id
-    issue = ir.async_get(hass).async_get_issue(DOMAIN, f"empty_public_menu_{unique_id}")
-    assert issue is None
 
 
 async def test_reauth_updates_the_password(hass: HomeAssistant):

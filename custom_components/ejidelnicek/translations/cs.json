@@ -39,7 +39,7 @@
   "issues": {
     "empty_public_menu": {
       "title": "Veřejný jídelníček na {host} je prázdný",
-      "description": "Tato jídelna nezveřejňuje jídelníček veřejně -- {host} bez přihlášení nezobrazuje žádná jídla. Nastavte v této položce integrace uživatelské jméno a heslo, aby se jídelníček zobrazil."
+      "description": "Tato jídelna nezveřejňuje jídelníček veřejně -- {host} bez přihlášení nezobrazuje žádná jídla. Chcete-li jídelníček vidět, odeberte tuto položku integrace E-jídelníček a přidejte ji znovu, tentokrát s uživatelským jménem a heslem. Toto upozornění zmizí samo, jakmile bude jídelníček vidět."
     }
   },
   "options": {

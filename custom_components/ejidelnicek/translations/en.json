@@ -39,7 +39,7 @@
   "issues": {
     "empty_public_menu": {
       "title": "The public menu at {host} appears to be empty",
-      "description": "This canteen does not publish its menu publicly -- {host} shows no dishes without logging in. Reconfigure this integration entry with a username and password to see the menu."
+      "description": "This canteen does not publish its menu publicly -- {host} shows no dishes without logging in. To see the menu, remove this entry from E-jídelníček and add it again, this time with a username and password. This message disappears on its own once the menu is visible."
     }
   },
   "options": {

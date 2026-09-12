@@ -14,6 +14,7 @@ from custom_components.ejidelnicek.api import (
     _dates_to_fetch,
     async_validate,
     candidate_base_urls,
+    menu_is_empty,
 )
 from custom_components.ejidelnicek.parser import extract_payload, parse_canteen
 from tests.fixture_loader import load
@@ -165,7 +166,7 @@ async def test_validate_flags_a_canteen_that_publishes_no_menu_publicly():
         with aioresponses() as mocked:
             mocked.get(base + "menu/", status=200, body=load("canteen_placeholder.html"))
             result = await async_validate(session, base, None, None)
-    assert result.menu_is_empty is True
+    assert menu_is_empty(result.canteen) is True
     assert result.base_url == base
 
 
@@ -180,7 +181,7 @@ async def test_validate_falls_back_from_https_to_http_candidate():
             )
             result = await async_validate(session, "x.example.cz", None, None)
     assert result.base_url == "http://x.example.cz/ejidelnicek/"
-    assert result.menu_is_empty is False
+    assert menu_is_empty(result.canteen) is False
 
 
 async def test_validate_reraises_the_last_error_when_no_candidate_works():

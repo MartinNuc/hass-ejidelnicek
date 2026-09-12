@@ -423,6 +423,15 @@ Errors are distinguished because the remedies differ:
 `unsupported_site` matters: without it, pointing the integration at a
 superficially similar Czech canteen site looks like a bug in the integration.
 
+**The empty-public-menu warning is a Repairs issue owned by
+`async_setup_entry`, not by the config flow.** It is re-decided from the
+current snapshot on every setup and deleted on unload, keyed on `entry_id`.
+Raising it once inside the flow (keyed on `unique_id`) made it permanent
+litter: never re-examined when the canteen started publishing, and orphaned
+outright when the user re-added the canteen with credentials under a different
+unique_id. Its text tells the user to remove and re-add the entry, because
+there is no reconfigure step in this integration.
+
 ## 10. Privacy and secret handling
 
 The user's explicit requirement was that no private information be published.

@@ -24,6 +24,7 @@ from aioresponses import aioresponses
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from yarl import URL
@@ -173,3 +174,87 @@ async def test_the_cookie_jar_we_configure_keeps_an_ip_hosts_cookie() -> None:
     default = aiohttp.CookieJar()
     default.update_cookies({"JSESSIONID": "dropped"}, url)
     assert "JSESSIONID" not in default.filter_cookies(url)
+
+
+def _empty_menu_issue(hass: HomeAssistant, entry: MockConfigEntry):
+    return ir.async_get(hass).async_get_issue(DOMAIN, f"empty_public_menu_{entry.entry_id}")
+
+
+async def _setup_against(hass: HomeAssistant, fixture: str, **entry_kwargs) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_BASE_URL: BASE, **entry_kwargs.pop("data", {})},
+        unique_id=f"{BASE}|public",
+        title="school.example.cz",
+        **entry_kwargs,
+    )
+    entry.add_to_hass(hass)
+    with aioresponses() as mocked:
+        mocked.get(MENU, status=200, body=load(fixture), repeat=True)
+        mocked.get(BASE, status=200, body="<form id='loginForm'></form>", repeat=True)
+        mocked.post(
+            BASE + "logincheck", status=200, body="ejidelnicek.setJidelnicek({})", repeat=True
+        )
+        mocked.get(AJAX_RE, status=200, body=load("ajax_authenticated.json"), repeat=True)
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    return entry
+
+
+async def test_a_canteen_publishing_nothing_publicly_raises_a_repairs_issue(
+    hass: HomeAssistant,
+) -> None:
+    """The warning is raised during setup, from the current snapshot."""
+    entry = await _setup_against(hass, "canteen_placeholder.html")
+    issue = _empty_menu_issue(hass, entry)
+    assert issue is not None
+    assert issue.is_fixable is False
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert issue.translation_key == "empty_public_menu"
+    assert issue.translation_placeholders == {"host": "school.example.cz"}
+
+
+async def test_a_canteen_that_publishes_raises_no_repairs_issue(hass: HomeAssistant) -> None:
+    entry = await _setup_against(hass, "canteen_two_options.html")
+    assert _empty_menu_issue(hass, entry) is None
+
+
+async def test_a_credentialed_entry_raises_no_repairs_issue(hass: HomeAssistant) -> None:
+    """Credentials were given, so an empty *public* menu is not surprising."""
+    entry = await _setup_against(
+        hass,
+        "canteen_placeholder.html",
+        data={CONF_USERNAME: "u", CONF_PASSWORD: "p"},
+    )
+    assert _empty_menu_issue(hass, entry) is None
+
+
+async def test_the_repairs_issue_clears_when_the_canteen_starts_publishing(
+    hass: HomeAssistant,
+) -> None:
+    """The issue must self-heal, not sit in Settings forever.
+
+    Created once from inside the config flow, it was never re-evaluated: a
+    canteen that started publishing left the warning standing permanently.
+    Deciding it during setup means a reload clears it.
+    """
+    entry = await _setup_against(hass, "canteen_placeholder.html")
+    assert _empty_menu_issue(hass, entry) is not None
+
+    with aioresponses() as mocked:
+        mocked.get(MENU, status=200, body=load("canteen_two_options.html"), repeat=True)
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert _empty_menu_issue(hass, entry) is None
+
+
+async def test_the_repairs_issue_goes_away_with_the_entry(hass: HomeAssistant) -> None:
+    """Removing the entry must not leave an un-clearable warning behind."""
+    entry = await _setup_against(hass, "canteen_placeholder.html")
+    assert _empty_menu_issue(hass, entry) is not None
+
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    assert _empty_menu_issue(hass, entry) is None

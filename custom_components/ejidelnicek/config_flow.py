@@ -25,7 +25,6 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
@@ -158,23 +157,12 @@ class EjidelnicekConfigFlow(ConfigFlow, domain=DOMAIN):
                         data[CONF_USERNAME] = username
                         data[CONF_PASSWORD] = password
 
-                    if result.menu_is_empty and not username:
-                        # Some canteens (typically kindergartens) publish
-                        # nothing on the public menu at all -- the entry is
-                        # still created (it may start showing data once
-                        # credentials are added), but a log line alone is
-                        # invisible to someone completing the wizard, so
-                        # raise a persistent Repairs issue instead.
-                        ir.async_create_issue(
-                            self.hass,
-                            DOMAIN,
-                            f"empty_public_menu_{self.unique_id}",
-                            is_fixable=False,
-                            severity=ir.IssueSeverity.WARNING,
-                            translation_key="empty_public_menu",
-                            translation_placeholders={"host": host},
-                        )
-
+                    # A canteen that publishes nothing publicly raises a
+                    # Repairs issue -- but that is decided in
+                    # ``async_setup_entry`` against the *current* snapshot, not
+                    # here against a one-shot probe, so it self-heals when the
+                    # canteen starts publishing and is cleaned up when the
+                    # entry goes away. See ``_async_update_empty_menu_issue``.
                     return self.async_create_entry(title=title, data=data)
 
         return self.async_show_form(

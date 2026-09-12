@@ -92,9 +92,12 @@ entries, not a conflict.
 
 A few canteens, mostly kindergartens, don't put anything on the public menu
 page at all -- one real deployment shows a single menu option literally named
-*"Přihlásit"* ("Log in"). If setup detects this, it still creates the entry
-(entering credentials later may populate it), but also raises a Repairs
-issue in Home Assistant telling you that credentials will likely fix it.
+*"Přihlásit"* ("Log in"). The entry is still created, but a Repairs issue in
+Home Assistant tells you that credentials will likely fix it: remove the entry
+and add it again with a username and password.
+
+The issue is re-evaluated every time the entry loads, so it clears itself if
+the canteen starts publishing, and it disappears when you remove the entry.
 
 ### Troubleshooting `unsupported_site`
 

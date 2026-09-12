@@ -180,11 +180,15 @@ def _merge_canteen(base: Canteen, authoritative: Canteen) -> Canteen:
     return replace(base, meal_types=tuple(merged_meal_types))
 
 
-def _menu_is_empty(canteen: Canteen) -> bool:
+def menu_is_empty(canteen: Canteen) -> bool:
     """Return True if no day in any meal type has a soup, dessert or drink.
 
     This is the signal for a canteen (typically a kindergarten) that
     publishes nothing publicly and requires credentials to see anything.
+
+    Public because it is evaluated on every setup (``__init__.py``) against
+    the *current* snapshot, not once during the config flow: a canteen that
+    starts publishing must make the resulting Repairs issue go away by itself.
     """
     for meal_type in canteen.meal_types:
         for day in meal_type.days.values():
@@ -332,7 +336,6 @@ class ValidationResult:
     base_url: str
     canteen: Canteen
     diner: Diner | None
-    menu_is_empty: bool
 
 
 async def async_validate(
@@ -362,7 +365,6 @@ async def async_validate(
             base_url=base_url,
             canteen=snapshot.canteen,
             diner=snapshot.diner,
-            menu_is_empty=_menu_is_empty(snapshot.canteen),
         )
     if last_error is None:
         raise CannotConnect(f"no candidate base url could be resolved from {raw_url!r}")
