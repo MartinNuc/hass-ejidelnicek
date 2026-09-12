@@ -64,15 +64,28 @@ def resolve_allergens(
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Resolve a concatenated allergen code string against a legend.
 
-    The payload concatenates allergen codes as single characters, e.g. ``"17"``
-    means codes ``1`` and ``7`` -- never the integer 17. Unknown codes are kept
-    in the returned codes tuple but contribute no name.
+    The payload concatenates allergen codes as single BASE-36 characters, e.g.
+    ``"17"`` means codes ``1`` and ``7`` -- never the integer 17 -- and codes
+    10-28 are encoded as the letters ``A``-``S`` (confirmed against the site's
+    own ``alergZobr`` rendering, e.g. ``alerg="1F"`` displays as allergens
+    ``1,1a``, and ``alergenyMap["15"]`` is ``1a``, so ``F`` decodes to ``15``).
+    Each character is decoded with ``int(ch, 36)`` and the decoded numeric
+    code (not the raw character) is what appears in the returned codes tuple,
+    so it matches both the legend's keys and what the site shows a parent.
+    Unknown codes are kept in the returned codes tuple but contribute no name.
+    A character that is not valid base-36 is silently skipped rather than
+    raising.
     """
     if not codes:
         return (), ()
-    resolved_codes = tuple(codes)
+    resolved_codes = []
+    for char in codes:
+        try:
+            resolved_codes.append(str(int(char, 36)))
+        except ValueError:
+            continue
     names = tuple(legend[code] for code in resolved_codes if code in legend)
-    return names, resolved_codes
+    return names, tuple(resolved_codes)
 
 
 def parse_decimal_cz(value: str | None) -> Decimal | None:
