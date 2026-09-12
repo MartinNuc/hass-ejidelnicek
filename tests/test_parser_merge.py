@@ -1,3 +1,4 @@
+import dataclasses
 import datetime
 from decimal import Decimal
 
@@ -124,9 +125,39 @@ def test_parse_ajax_reads_orders_balance_and_debt():
 
 
 def test_diner_never_exposes_identifying_fields():
-    _, diner = parse_ajax(load("ajax_authenticated.json"))
-    for forbidden in ("jmeno", "cislo", "vs", "loginEmail", "name"):
-        assert not hasattr(diner, forbidden)
+    # The fixture itself carries no identifying fields, so exercise parse_diner
+    # directly with a synthetic stravnik dict that DOES include them, using
+    # recognisable sentinel values, and assert those values never surface --
+    # not as attributes, not merely omitted-by-fixture-coincidence.
+    diner = parse_diner(
+        {
+            "konto": "297,00",
+            "kontoStravne": "150,50",
+            "kontoSkolne": "0,00",
+            "dluh": False,
+            "bezObjednavani": False,
+            "jmeno": "SENTINEL_NAME_Novakova",
+            "cislo": "SENTINEL_ACCOUNT_123456",
+            "vs": "SENTINEL_VS_987654",
+            "loginEmail": "sentinel.parent@example.invalid",
+        }
+    )
+    forbidden_values = (
+        "SENTINEL_NAME_Novakova",
+        "SENTINEL_ACCOUNT_123456",
+        "SENTINEL_VS_987654",
+        "sentinel.parent@example.invalid",
+    )
+    diner_values = [str(v) for v in dataclasses.asdict(diner).values()]
+    diner_repr = repr(diner)
+    for forbidden in forbidden_values:
+        assert forbidden not in diner_values
+        assert all(forbidden not in value for value in diner_values)
+        assert forbidden not in diner_repr
+    # The wanted fields still survive the parse.
+    assert diner.balance == Decimal("297.00")
+    assert diner.balance_meals == Decimal("150.50")
+    assert diner.balance_tuition == Decimal("0.00")
 
 
 def test_parse_diner_maps_fields_with_czech_decimal_commas():
