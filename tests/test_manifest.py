@@ -11,11 +11,16 @@ def test_manifest_is_valid_for_a_custom_integration():
     assert data["iot_class"] == "cloud_polling"
     assert data["version"]
     # HA ships aiohttp; a custom integration must not pin it.
-    assert data.get("requirements", []) == []
+    assert "requirements" in data and data["requirements"] == []
 
 
 def test_source_never_references_the_order_writing_endpoint():
     """menu-update places and cancels real orders. Phase 1 is read-only."""
-    sources = Path("custom_components/ejidelnicek").rglob("*.py")
-    offenders = [p for p in sources if "menu-update" in p.read_text(encoding="utf-8")]
+    SCANNED_SUFFIXES = {".py", ".json", ".yaml", ".yml", ".md"}
+    files = [
+        p
+        for p in Path("custom_components/ejidelnicek").rglob("*")
+        if p.is_file() and p.suffix in SCANNED_SUFFIXES
+    ]
+    offenders = [p for p in files if "menu-update" in p.read_text(encoding="utf-8")]
     assert offenders == []
