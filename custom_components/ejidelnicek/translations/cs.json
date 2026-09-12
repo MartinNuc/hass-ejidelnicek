@@ -60,8 +60,14 @@
       "today": {
         "name": "{meal_type}: dnes"
       },
+      "soup_today": {
+        "name": "{meal_type}: polévka dnes"
+      },
       "next_serving_day": {
         "name": "{meal_type}: nejbližší výdejní den"
+      },
+      "soup_next_serving_day": {
+        "name": "{meal_type}: polévka na nejbližší výdejní den"
       },
       "ordered_next_serving_day": {
         "name": "{meal_type}: objednávka na nejbližší výdejní den"

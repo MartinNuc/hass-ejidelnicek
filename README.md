@@ -36,6 +36,8 @@ lunch, all under one login), the integration creates:
 | `calendar.<host>_<meal>_menu` | One all-day calendar event per known serving day |
 | `sensor.<host>_<meal>_today` | Today's primary dish, or `unknown` if nothing is served today |
 | `sensor.<host>_<meal>_next_serving_day` | The primary dish on the next known serving day (e.g. on a Friday, this already points at Monday) |
+| `sensor.<host>_<meal>_soup_today` | Today's soup, or `unknown` if nothing is served today |
+| `sensor.<host>_<meal>_soup_next_serving_day` | The soup on the next known serving day |
 
 If you provide credentials, you additionally get, per meal type or account:
 
@@ -54,7 +56,9 @@ Both the "today" and "next serving day" sensors carry the full menu for that
 day as attributes:
 
 - `date`, `weekday_label`
-- `soup` (the first soup's name) and `soups` (all of them)
+- `soup` (the first soup's name) and `soups` (all of them) — also available
+  as a state of its own on the `_soup_*` sensors above, since Home Assistant
+  shows entity states rather than attributes on device pages and cards
 - `dessert`, `drink`
 - `options` -- a list, each with `label`, `name`, `allergens`,
   `allergen_codes`, `diet`, `price`, `ordered`, `remaining`

@@ -60,8 +60,14 @@
       "today": {
         "name": "{meal_type} today"
       },
+      "soup_today": {
+        "name": "{meal_type} soup today"
+      },
       "next_serving_day": {
         "name": "{meal_type} next serving day"
+      },
+      "soup_next_serving_day": {
+        "name": "{meal_type} soup next serving day"
       },
       "ordered_next_serving_day": {
         "name": "{meal_type} ordered next serving day"

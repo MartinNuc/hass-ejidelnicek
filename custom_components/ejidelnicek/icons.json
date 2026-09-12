@@ -4,8 +4,14 @@
       "today": {
         "default": "mdi:food"
       },
+      "soup_today": {
+        "default": "mdi:bowl-mix"
+      },
       "next_serving_day": {
         "default": "mdi:calendar-arrow-right"
+      },
+      "soup_next_serving_day": {
+        "default": "mdi:bowl-mix"
       },
       "ordered_next_serving_day": {
         "default": "mdi:silverware-fork-knife"

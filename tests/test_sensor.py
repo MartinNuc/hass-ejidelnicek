@@ -16,6 +16,7 @@ and yields opaque failures.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 
 from aioresponses import aioresponses
@@ -32,6 +33,8 @@ MENU = BASE + "menu/"
 
 TODAY_ID = "sensor.school_example_cz_obed_today"
 NEXT_SERVING_DAY_ID = "sensor.school_example_cz_obed_next_serving_day"
+SOUP_TODAY_ID = "sensor.school_example_cz_obed_soup_today"
+SOUP_NEXT_ID = "sensor.school_example_cz_obed_soup_next_serving_day"
 
 # The fixture publishes 2026-09-14 .. 2026-09-25 (Mon .. Fri, two weeks).
 MONDAY = datetime.datetime(2026, 9, 14, 12, 0, tzinfo=datetime.UTC)
@@ -170,3 +173,65 @@ async def test_midnight_rollover_updates_today_without_a_repoll(hass: HomeAssist
     state = hass.states.get(TODAY_ID)
     assert state.attributes["date"] == "2026-09-15"
     assert state.state == "Rizoto s vepřového masa, sýr eidam"
+
+
+async def test_soup_sensor_reports_the_soup_on_a_serving_day(hass: HomeAssistant, freezer):
+    """Soup gets its own state: Home Assistant surfaces states, not attributes."""
+    freezer.move_to(MONDAY)
+    await _setup(hass)
+    state = hass.states.get(SOUP_TODAY_ID)
+    assert state.state == "Dýňový krém se semínky"
+    assert state.attributes["date"] == "2026-09-14"
+    assert state.attributes["soups"] == ["Dýňový krém se semínky"]
+
+
+async def test_soup_sensor_is_unknown_on_a_weekend(hass: HomeAssistant, freezer):
+    """No serving day means no soup -- unknown, not an empty string."""
+    freezer.move_to(SATURDAY)
+    await _setup(hass)
+    assert hass.states.get(SOUP_TODAY_ID).state == "unknown"
+
+
+async def test_soup_next_serving_day_matches_the_dish_sensor_s_day(hass: HomeAssistant, freezer):
+    """The soup and the dish must never disagree about which day they describe.
+
+    Both resolve the day through the same ``_day()``, so this pins that they
+    stay in lockstep rather than drifting apart.
+    """
+    freezer.move_to(SATURDAY)
+    await _setup(hass)
+    soup = hass.states.get(SOUP_NEXT_ID)
+    dish = hass.states.get(NEXT_SERVING_DAY_ID)
+    assert soup.state == "Kmínová s vejci"
+    assert soup.attributes["date"] == dish.attributes["date"] == "2026-09-21"
+    assert soup.attributes["days_ahead"] == dish.attributes["days_ahead"] == 2
+
+
+async def test_soup_sensor_carries_the_soups_allergens(hass: HomeAssistant, freezer):
+    """The soup's own allergens, not the whole day's."""
+    freezer.move_to(MONDAY)
+    await _setup(hass)
+    allergens = hass.states.get(SOUP_TODAY_ID).attributes["allergens"]
+    # 2026-09-14's soup carries alerg "17" -> codes 1 and 7.
+    assert allergens == [
+        "01 - Obilniny obsahující lepek",
+        "07 - Mléko a výrobky z něj.",
+    ]
+
+
+async def test_soup_sensor_is_unknown_when_a_day_serves_no_soup(hass: HomeAssistant, freezer):
+    """A canteen can publish a main course with no soup; that is not an error."""
+    freezer.move_to(MONDAY)
+    entry = await _setup(hass)
+    meal = entry.runtime_data.data.canteen.meal_types[0]
+    day = meal.day_for(datetime.date(2026, 9, 14))
+    soupless = dataclasses.replace(day, soups=())
+    patched = dataclasses.replace(meal, days={**meal.days, soupless.date: soupless})
+    canteen = dataclasses.replace(entry.runtime_data.data.canteen, meal_types=(patched,))
+    entry.runtime_data.async_set_updated_data(
+        dataclasses.replace(entry.runtime_data.data, canteen=canteen)
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(SOUP_TODAY_ID).state == "unknown"
+    # The dish sensor is unaffected.
+    assert hass.states.get(TODAY_ID).state == "Květák s vejci, brambory s pažitkou"

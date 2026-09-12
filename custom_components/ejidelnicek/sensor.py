@@ -53,6 +53,10 @@ async def async_setup_entry(
         entities.append(
             EjidelnicekDaySensor(coordinator, entry, meal_type.index, "next_serving_day")
         )
+        entities.append(EjidelnicekSoupSensor(coordinator, entry, meal_type.index, "today"))
+        entities.append(
+            EjidelnicekSoupSensor(coordinator, entry, meal_type.index, "next_serving_day")
+        )
         if coordinator.client.has_credentials:
             entities.append(EjidelnicekOrderedSensor(coordinator, entry, meal_type.index))
     if coordinator.client.has_credentials:
@@ -155,6 +159,60 @@ class EjidelnicekDaySensor(EjidelnicekEntity, SensorEntity):
             days_ahead = (day.date - dt_util.now().date()).days
             return _day_attributes(day, days_ahead=days_ahead)
         return _day_attributes(day)
+
+
+class EjidelnicekSoupSensor(EjidelnicekDaySensor):
+    """Reports the soup for "today" or the next known serving day.
+
+    The soup is already carried in the day sensors' ``soup``/``soups``
+    attributes, but Home Assistant surfaces entity *states*, not attributes:
+    on a device page or a dashboard card the soup was invisible without
+    templating. Czech canteens serve a soup with essentially every lunch, so
+    it is worth a state of its own rather than an attribute lookup.
+
+    Subclasses ``EjidelnicekDaySensor`` purely to reuse its ``_day()``
+    resolution, so "today" and "next serving day" can never drift apart
+    between the dish and the soup.
+    """
+
+    def __init__(
+        self,
+        coordinator: EjidelnicekCoordinator,
+        entry: EjidelnicekConfigEntry,
+        meal_index: str,
+        which: Which,
+    ) -> None:
+        """Initialize the soup sensor for one meal type and one day selection."""
+        super().__init__(coordinator, entry, meal_index, which)
+        self._attr_translation_key = f"soup_{which}"
+        self._attr_unique_id = f"{entry.entry_id}_{meal_index}_soup_{which}"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the first soup's name, or None when none is served.
+
+        A day with no soup reports ``None`` (state ``unknown``) rather than an
+        empty string, matching how the dish sensors report a day with no menu.
+        """
+        day = self._day()
+        if day is None or not day.soups:
+            return None
+        return day.soups[0].name[:_STATE_MAX_LENGTH]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the soup details: every soup, and their combined allergens."""
+        day = self._day()
+        if day is None:
+            return {}
+        attributes: dict[str, Any] = {
+            "date": day.date.isoformat(),
+            "soups": [soup.name for soup in day.soups],
+            "allergens": sorted({allergen for soup in day.soups for allergen in soup.allergens}),
+        }
+        if self._which == "next_serving_day":
+            attributes["days_ahead"] = (day.date - dt_util.now().date()).days
+        return attributes
 
 
 class EjidelnicekOrderedSensor(EjidelnicekEntity, SensorEntity):
