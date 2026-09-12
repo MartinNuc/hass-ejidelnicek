@@ -31,3 +31,6 @@ scratch/
 *.authenticated.json
 auth_*.html
 auth_*.json
+
+# SDD workspace (scratch: ledger, briefs, review packages)
+.superpowers/
