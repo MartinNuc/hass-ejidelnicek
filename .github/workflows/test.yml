@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --group dev
+
+      - name: Lint with ruff
+        run: |
+          ruff check custom_components tests
+          ruff format --check custom_components tests
+
+      - name: Run tests
+        run: pytest -q

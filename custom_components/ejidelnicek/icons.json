@@ -1,0 +1,31 @@
+{
+  "entity": {
+    "sensor": {
+      "today": {
+        "default": "mdi:food"
+      },
+      "next_serving_day": {
+        "default": "mdi:calendar-arrow-right"
+      },
+      "ordered_next_serving_day": {
+        "default": "mdi:silverware-fork-knife"
+      },
+      "balance": {
+        "default": "mdi:cash"
+      }
+    },
+    "binary_sensor": {
+      "debt": {
+        "default": "mdi:cash-check",
+        "state": {
+          "on": "mdi:cash-remove"
+        }
+      }
+    },
+    "calendar": {
+      "menu": {
+        "default": "mdi:calendar-month"
+      }
+    }
+  }
+}

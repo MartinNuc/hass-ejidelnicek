@@ -8,8 +8,8 @@
 ## 1. Purpose
 
 Expose Czech school canteen menus from the **E-jídelníček** system
-(`e-jidelnicek.eu`, by LÁF Electronics) to Home Assistant, so a household can
-see what lunch is being served and automate around it.
+(by LÁF Electronics) to Home Assistant, so a household can see what lunch is
+being served and automate around it.
 
 The integration is **generic across schools**: nothing about any one canteen is
 hardcoded. It is validated against five independent deployments.
@@ -46,12 +46,14 @@ Each canteen is its own host serving the app under a common path:
 https://<host>/ejidelnicek/
 ```
 
-Hosts vary far more than the paths do. The official directory
-(`e-jidelnicek.eu/main/down.php`, region → city → canteen) resolves canteen IDs
-to base URLs, and those include plain `http`, non-standard ports, and even a LAN
-address (`http://192.168.10.233/ejidelnicek` for ZŠ Korunovační). **This is why
-setup takes a URL rather than offering a built-in school picker** — a picker
-would confidently hand out unreachable addresses.
+Hosts vary far more than the paths do. The vendor's own public directory
+(`/main/down.php`, region → city → canteen) resolves canteen IDs to base URLs,
+and those include plain `http`, non-standard ports, and even deployments
+reachable only at a LAN IP address (`http://192.168.10.233/ejidelnicek`).
+**This is why setup takes a URL rather than offering a built-in school
+picker** — a picker would confidently hand out unreachable addresses.
+
+(Deliberately no real school hostnames anywhere in this document: see §10.)
 
 ### 3.2 The menu payload
 
@@ -87,11 +89,24 @@ Structure:
 | `…menuMap[k].dbId` | option id (needed for phase 2 ordering) |
 | `…menuMap[k].isFirst` | marks the primary option |
 
-**Allergen codes are concatenated single characters, not integers.** `alerg:
-"17"` means codes `1` and `7`, not `17` — confirmed against the site's own
-`alergZobr` rendering (`"(obsahuje alergeny:1,7)"`). Since `alergenyMap` has
-keys up to `28`, a naive integer parse silently yields wrong allergens. This is
-a correctness trap and must be covered by a test.
+**Allergen codes are concatenated base-36 characters, not integers.** Each
+character is one code: `'1'`-`'9'` are codes 1-9, `'A'`-`'S'` are codes 10-28.
+So `alerg: "17"` means codes `1` and `7`, not `17` — while `alerg: "1F"` means
+codes `1` and `15`. Confirmed against the site's own `alergZobr` rendering:
+`"17"` → `(obsahuje alergeny:1,7)`, `"1379AC"` → `1,3,7,9,10,12`, and `"1F"` →
+`1,1a` where `alergenyMap["15"]` is `"1a - Obilniny obsahující lepek - pšenice."`.
+
+Two traps live here and both are allergy-safety relevant. A naive `int()` of the
+whole string yields the wrong allergen — but so does a plain digit-wise split,
+which silently drops every letter-coded allergen: mustard (10), sesame (11),
+sulfites (12), lupin (13), molluscs (14) and all the gluten and nut sub-codes
+(15-28). Decode with `int(ch, 36)` and expose the decoded numeric code, so
+`allergen_codes` matches both the legend keys and what the site shows a parent.
+A code decoding to a value absent from the legend is kept without a name — real
+payloads contain `"17T"`, which the site itself renders with a trailing empty
+entry. This must be covered by a test against real payload data, not only a
+synthetic legend: a synthetic-only test is what allowed the digit-wise bug
+through during implementation.
 
 Extraction requires a **balanced-brace scan** that respects string literals and
 escapes. A regex to the final `}` is wrong, because dish names contain braces
@@ -99,10 +114,10 @@ and the payload is followed by more JavaScript.
 
 ### 3.3 Not every canteen publishes publicly
 
-Verified on `msjesenice.e-jidelnicek.eu` (a kindergarten): all 35 published days
-have empty `polevka`, empty `zakusek`, empty `napoj`, and a single option whose
-`nazev` is literally `"Přihlásit"` ("Log in"). The public view is a placeholder;
-the real menu is behind login.
+Verified on a kindergarten deployment: all 35 published days have empty
+`polevka`, empty `zakusek`, empty `napoj`, and a single option whose `nazev` is
+literally `"Přihlásit"` ("Log in"). The public view is a placeholder; the real
+menu is behind login.
 
 Consequences: the parser must tolerate empty collections everywhere, and setup
 should warn when a parse succeeds but every day is devoid of content.
@@ -243,8 +258,15 @@ class Canteen:
 class Snapshot:                       # coordinator payload
     canteen: Canteen
     diner: Diner | None               # None when anonymous
-    fetched_at: datetime.datetime
+    fetched_at: datetime.datetime = field(compare=False)
 ```
+
+`fetched_at` is excluded from equality. The coordinator runs with
+`always_update=False`, which is the whole reason these dataclasses are frozen
+and comparable: a poll that returns unchanged data must not churn entity
+state. A timestamp that changes every poll would make `Snapshot.__eq__`
+unconditionally false and silently nullify that. It is still reported by
+diagnostics, which is where "how old is this data?" is worth knowing.
 
 `Diner` intentionally omits `jmeno`, `cislo`, `vs` and `loginEmail`. The
 integration has no use for them, and not modelling them means they cannot leak
@@ -252,7 +274,18 @@ into attributes, diagnostics or logs (§10).
 
 ## 6. Transport and authentication (`api.py`)
 
-All requests go through Home Assistant's shared `aiohttp` session.
+Each config entry gets its **own** `aiohttp` session, created with
+`async_create_clientsession(hass, cookie_jar=aiohttp.CookieJar(unsafe=True))`,
+and the config flow validates on a throwaway session of the same shape. Never
+`async_get_clientsession`: the session cookie (`JSESSIONID`) lives in the
+session's cookie jar, and HA's shared session has one instance-wide
+`CookieJar(unsafe=False)`. Sharing it would (a) silently drop the cookie for a
+LAN-IP deployment (`update_cookies` refuses cookies from IP hosts unless the
+jar is `unsafe`), making a credentialed entry there impossible to
+authenticate, and (b) let two diners at one school overwrite each other's
+session, so one entry would report its sibling's orders and balance as its own
+— and would let config-flow validation accept a *wrong* password whenever a
+sibling session happened to be live.
 
 **URL normalisation.** Accept a bare host, `…/ejidelnicek/`, or
 `…/ejidelnicek/menu/`. Add a scheme when missing, trying `https` first and
@@ -308,8 +341,10 @@ failures, which raise `ConfigEntryAuthFailed`.
 ## 8. Entities
 
 One HA device per config entry (the canteen). Entities use
-`has_entity_name = True` with translation keys. `<meal>` is the slugified meal
-type name, iterated from `stravaMap`, so multi-meal canteens work.
+`has_entity_name = True` with translation keys. Each per-meal-type entity
+carries its meal type name as a translation placeholder and Home Assistant
+slugifies the resulting entity *name* into the entity id, so multi-meal
+canteens work without the model layer knowing anything about slugs.
 
 Always:
 
@@ -326,6 +361,11 @@ Only with credentials:
 | `sensor.<slug>_<meal>_ordered_next_serving_day` | option label, else `none` | authoritative (§3.4) |
 | `sensor.<slug>_balance` | `Decimal` | `device_class: monetary`, CZK, entry-level |
 | `binary_sensor.<slug>_debt` | `dluh` | `device_class: problem` |
+
+`_next_serving_day` is **strictly forward**: it is the earliest published day
+*after* today, never today itself. `_today` already covers today, so making
+the two complementary is what keeps `_next_serving_day` from duplicating it on
+every serving day (five days out of seven, with `days_ahead: 0`).
 
 There is no `_tomorrow` sensor. On a Friday, "tomorrow" is a Saturday with no
 menu, which makes the entity useless exactly when it matters;
@@ -351,8 +391,15 @@ drink and allergens. Blocked days are marked in the summary.
 
 **Single `user` step:** URL (required), username and password (both optional,
 labelled "leave blank for public menu only"). Validation performs a real fetch
-and parse, and the created entry is titled with the canteen's meal-type name and
-host.
+and parse, and the created entry is titled with the canteen's host alone.
+
+The title deliberately excludes the meal-type name. One entry can carry several
+meal types — kindergartens in this system publish breakfast, lunch and a snack —
+so the device identifies the canteen while each entity name carries its own
+`{meal_type}` placeholder. Putting the meal type in both produced duplicated
+entity ids like `sensor.obed_<host>_obed_today`, and omitting it from the
+per-meal entity names left a multi-meal canteen showing two entities both called
+"Today", distinguished only by Home Assistant's `_2` suffix.
 
 **`unique_id` = `<normalised base url>|<username or "public">`.** Including the
 username means two children at the same school are two valid entries rather than
@@ -376,6 +423,15 @@ Errors are distinguished because the remedies differ:
 `unsupported_site` matters: without it, pointing the integration at a
 superficially similar Czech canteen site looks like a bug in the integration.
 
+**The empty-public-menu warning is a Repairs issue owned by
+`async_setup_entry`, not by the config flow.** It is re-decided from the
+current snapshot on every setup and deleted on unload, keyed on `entry_id`.
+Raising it once inside the flow (keyed on `unique_id`) made it permanent
+litter: never re-examined when the canteen started publishing, and orphaned
+outright when the user re-added the canteen with credentials under a different
+unique_id. Its text tells the user to remove and re-add the entry, because
+there is no reconfigure step in this integration.
+
 ## 10. Privacy and secret handling
 
 The user's explicit requirement was that no private information be published.
@@ -384,7 +440,7 @@ The user's explicit requirement was that no private information be published.
 - `.gitignore` blocks `.env*`, `credentials*`, `secrets.yaml`, and `auth_*.html` / `auth_*.json` captures of authenticated pages (which contain a diner's name, account number and balance).
 - **Fixtures for authenticated behaviour are synthetic**: built by taking a public payload and injecting `objednavka`, `cena`, `barva` and a `stravnik` block with invented values. No captured personal data is committed.
 - Public-view fixtures carry no personal fields (`objednavka` is always `0`, `cena` `"0.00"`), and are trimmed to a few days.
-- `README` examples use a placeholder host, not the author's school, so the repo does not advertise which school the family attends.
+- `README` examples use a placeholder host, not the author's school, so the repo does not advertise which school the family attends. The same holds for the fixtures (named by payload shape), for this document and the plan, and — since a plaintext deny-list of real hostnames is itself the leak — for the guard that enforces it: `tests/test_fixtures.py` holds only SHA-256 digests, and scans **every tracked file**, not just `tests/fixtures/`.
 - `Diner` models only balances and flags — never `jmeno`, `cislo`, `vs`, `loginEmail` (§5).
 - Credentials must never be logged. Diagnostics output is redacted.
 - CI runs a secret scan so a future accidental credential commit fails the build.
@@ -393,7 +449,7 @@ The user's explicit requirement was that no private information be published.
 
 Test-driven, parser first, and **entirely offline**.
 
-- **Parser unit tests** over fixtures from five real deployments — `letohrad.zs-stross.cz`, `stross.zs-stross.cz`, `jidelna.betlemska.cz`, `jidelnajakutska.sjp10.cz`, `msjesenice.e-jidelnicek.eu` — covering: per-school `strava_id` (1/2/3), option label variants (`1`,`2`,`D`,`B`), `posunDne` variants (0/1/2), empty soups/dessert/drink, and the placeholder kindergarten.
+- **Parser unit tests** over fixtures from five real deployments, named by payload *shape* rather than by school (a Prague primary school publishing two options plus a diet menu; a second school on the same host publishing a single option; a school publishing three options; a school publishing a long, five-week window; and a kindergarten publishing no public menu at all) — covering: per-school `strava_id` (1/2/3), option label variants (`1`,`2`,`D`,`B`), `posunDne` variants (0/1/2), empty soups/dessert/drink, and the placeholder kindergarten.
 - A dedicated test that `alerg: "17"` resolves to codes `1` and `7` (§3.2).
 - Balanced-brace extraction tests: braces inside dish names, trailing JavaScript, and a page with no payload → `unsupported_site`.
 - Czech decimal comma parsing; `zbyva == -1` → `None`.
@@ -401,7 +457,17 @@ Test-driven, parser first, and **entirely offline**.
 - **Config flow tests**: success anonymous, success authenticated, each error key, `unique_id` collision, two-children case, reauth.
 - **Entity tests** via `pytest-homeassistant-custom-component`: next-serving-day selection across a weekend, midnight rollover, all-day calendar event boundaries and ordering, unknown states on non-serving days, absence of credential-only entities when anonymous.
 
-CI (GitHub Actions): `hassfest`, HACS validation, `ruff`, `mypy`, `pytest`, secret scan.
+CI (GitHub Actions): `hassfest`, HACS validation, `ruff`, `pytest`, secret scan.
+The secret scan is a blocking job (no `continue-on-error`), so an accidental
+credential commit fails the build rather than merely annotating it.
+
+No `mypy`: an earlier draft of this spec listed it, but neither workflow ever
+ran it and it was never in the `dev` dependency group. The code is thoroughly
+annotated and `ruff` enforces the style, so rather than adding an unverified
+type-checking gate to CI, the claim is struck. Adding it later is a small,
+self-contained change -- add `mypy` to `[dependency-groups] dev`, a step to
+`test.yml`, and a `[tool.mypy]` table -- and should be done only once it
+actually passes.
 
 ## 12. Repository layout
 

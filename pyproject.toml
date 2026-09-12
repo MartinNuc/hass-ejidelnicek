@@ -1,0 +1,21 @@
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+# PEP 735 dependency group for local/CI test tooling -- this repository is a
+# Home Assistant custom_component, not an installable distribution, so there
+# is no [project] table to hang [project.optional-dependencies] off of.
+# Install with `pip install --group dev` (pip >= 25.1) or `uv sync --group dev`.
+[dependency-groups]
+dev = [
+    "aioresponses",
+    "pytest-homeassistant-custom-component",
+    "ruff",
+]
