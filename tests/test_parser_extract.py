@@ -34,3 +34,21 @@ def test_missing_payload_raises_payload_not_found():
 def test_unbalanced_payload_raises_payload_not_found():
     with pytest.raises(PayloadNotFound):
         extract_payload('ejidelnicek.setJidelnicek({"a": 1')
+
+
+def test_escaped_backslash_before_closing_quote_does_not_swallow_it():
+    """A string ending in a literal backslash (JSON `\\\\`) must still end at the next quote."""
+    html = r'ejidelnicek.setJidelnicek({"nazev": "path\\", "n": 1});'
+    assert extract_payload(html)["nazev"] == "path\\"
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        "ejidelnicek.setJidelnicek([1,2]);",
+        "ejidelnicek.setJidelnicek();",
+    ],
+)
+def test_non_object_argument_raises_payload_not_found(html):
+    with pytest.raises(PayloadNotFound):
+        extract_payload(html)

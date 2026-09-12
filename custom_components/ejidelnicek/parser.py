@@ -12,7 +12,12 @@ This module performs no I/O of any kind.
 
 from __future__ import annotations
 
+import datetime
 import json
+from collections.abc import Mapping
+from decimal import Decimal, InvalidOperation
+
+from .models import Canteen, DayMenu, Dish, MealType, MenuOption
 
 CALL = "setJidelnicek("
 
@@ -52,3 +57,160 @@ def extract_payload(html: str) -> dict:
                 except json.JSONDecodeError as err:
                     raise PayloadNotFound(f"payload is not valid JSON: {err}") from err
     raise PayloadNotFound("unbalanced braces in payload")
+
+
+def resolve_allergens(
+    codes: str | None, legend: Mapping[str, str]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Resolve a concatenated allergen code string against a legend.
+
+    The payload concatenates allergen codes as single characters, e.g. ``"17"``
+    means codes ``1`` and ``7`` -- never the integer 17. Unknown codes are kept
+    in the returned codes tuple but contribute no name.
+    """
+    if not codes:
+        return (), ()
+    resolved_codes = tuple(codes)
+    names = tuple(legend[code] for code in resolved_codes if code in legend)
+    return names, resolved_codes
+
+
+def parse_decimal_cz(value: str | None) -> Decimal | None:
+    """Parse a decimal that may use a Czech comma or a dot as separator.
+
+    Returns None for empty, missing or unparseable input instead of raising.
+    """
+    if not value:
+        return None
+    try:
+        return Decimal(value.replace(",", "."))
+    except InvalidOperation:
+        return None
+
+
+def _clean_text(value: str | None) -> str | None:
+    """Return None for an empty or missing string, else the string itself."""
+    return value if value else None
+
+
+def _parse_soups(polevka: list[dict] | None, legend: Mapping[str, str]) -> tuple[Dish, ...]:
+    """Parse the soup list, tolerating a missing or empty list."""
+    soups = []
+    for soup in polevka or []:
+        names, codes = resolve_allergens(soup.get("alerg"), legend)
+        soups.append(Dish(name=soup["polevka"], allergens=names, allergen_codes=codes))
+    return tuple(soups)
+
+
+def _parse_option(
+    key: str,
+    raw: dict,
+    *,
+    allergen_legend: Mapping[str, str],
+    diet_legend: Mapping[str, str],
+    authoritative: bool,
+) -> MenuOption:
+    """Parse a single menuMap entry into a MenuOption."""
+    names, codes = resolve_allergens(raw.get("alerg"), allergen_legend)
+    diet_code = raw.get("dieta")
+    diet = diet_legend.get(diet_code) if diet_code else None
+
+    if authoritative:
+        price = parse_decimal_cz(raw.get("cena"))
+        ordered = raw.get("objednavka", 0)
+        remaining = raw.get("zbyva")
+        remaining = None if remaining is None or remaining == -1 else remaining
+    else:
+        price = None
+        ordered = 0
+        remaining = None
+
+    return MenuOption(
+        key=key,
+        label=raw["dMenu"],
+        name=raw["nazev"],
+        allergens=names,
+        allergen_codes=codes,
+        diet=diet,
+        price=price,
+        ordered=ordered,
+        remaining=remaining,
+        db_id=raw["dbId"],
+        is_primary=bool(raw.get("isFirst")),
+    )
+
+
+def _parse_day(
+    raw: dict,
+    date: datetime.date,
+    *,
+    allergen_legend: Mapping[str, str],
+    diet_legend: Mapping[str, str],
+    authoritative: bool,
+) -> DayMenu:
+    """Parse a single denMap entry into a DayMenu."""
+    options = tuple(
+        _parse_option(
+            key,
+            option,
+            allergen_legend=allergen_legend,
+            diet_legend=diet_legend,
+            authoritative=authoritative,
+        )
+        for key, option in raw.get("menuMap", {}).items()
+    )
+    return DayMenu(
+        date=date,
+        weekday_label=raw.get("datumden", ""),
+        soups=_parse_soups(raw.get("polevka"), allergen_legend),
+        dessert=_clean_text(raw.get("zakusek")),
+        drink=_clean_text(raw.get("napoj")),
+        options=options,
+        is_blocked=raw.get("barva") == "B",
+    )
+
+
+def parse_canteen(payload: dict, *, authoritative: bool = False) -> Canteen:
+    """Map an extracted E-jídelníček payload into a frozen Canteen.
+
+    With ``authoritative=False`` (the public page) ``price``, ``remaining``
+    and ``ordered`` are forced to unknown/zero-order values, because the
+    public payload always carries ``cena: "0.00"`` and ``zbyva: 0`` and
+    reporting those verbatim would misrepresent them as real prices or a
+    sold-out meal. With ``authoritative=True`` (the AJAX response) these
+    fields are mapped for real, with ``zbyva == -1`` mapped to ``None``
+    (meaning "not tracked").
+    """
+    allergen_legend: Mapping[str, str] = payload.get("alergenyMap", {})
+    diet_legend: Mapping[str, str] = payload.get("dietyMap", {})
+
+    meal_types = []
+    for index, strava in payload.get("stravaMap", {}).items():
+        days: dict[datetime.date, DayMenu] = {}
+        for date_key, day_raw in strava.get("denMap", {}).items():
+            try:
+                date = datetime.date.fromisoformat(date_key)
+            except ValueError:
+                continue
+            days[date] = _parse_day(
+                day_raw,
+                date,
+                allergen_legend=allergen_legend,
+                diet_legend=diet_legend,
+                authoritative=authoritative,
+            )
+        meal_types.append(
+            MealType(
+                index=index,
+                strava_id=strava["id"],
+                name=strava.get("nazev", ""),
+                order_day_offset=strava.get("posunDne", 0),
+                days=days,
+            )
+        )
+
+    return Canteen(
+        allergens=allergen_legend,
+        diets=diet_legend,
+        meal_types=tuple(meal_types),
+    )
